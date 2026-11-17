@@ -4,6 +4,7 @@ import type { Activity, Expense, Trip } from '../types';
 export interface TripRepository {
   listTrips(): Promise<Trip[]>;
   saveTrip(trip: Trip): Promise<void>;
+  setTripArchived(tripId: string, archived: boolean): Promise<void>;
   saveCurrencyConversion(trip: Trip): Promise<void>;
   saveActivity(tripId: string, activity: Activity): Promise<void>;
   deleteActivity(tripId: string, activityId: string): Promise<void>;
@@ -29,6 +30,10 @@ class BrowserTripRepository implements TripRepository {
 
   async saveCurrencyConversion(trip: Trip): Promise<void> {
     await this.saveTrip(trip);
+  }
+
+  async setTripArchived(tripId: string, archived: boolean): Promise<void> {
+    this.updateTrip(tripId, (trip) => ({ ...trip, archived }));
   }
 
   async saveActivity(tripId: string, activity: Activity): Promise<void> {

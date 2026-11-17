@@ -74,6 +74,8 @@ test('an owner can create, list, and update their own trip', async () => {
   const snapshot = await assertSucceeds(getDocs(ownTrips));
   assert.equal(snapshot.size, 1);
   await assertSucceeds(updateDoc(doc(db, 'trips', 'trip-a'), { name: 'Kyoto 2027', updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'trip-a'), { archived: true, updatedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(db, 'trips', 'trip-a'), { archived: false, updatedAt: serverTimestamp() }));
 });
 
 test('trip writes must match the schema and the signed-in owner', async () => {
@@ -83,6 +85,7 @@ test('trip writes must match the schema and the signed-in owner', async () => {
   await assertFails(setDoc(doc(db, 'trips', 'trip-d'), trip('user-a', { endDate: '2027-05-01' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-e'), trip('user-a', { isAdmin: true })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-f'), trip('user-a', { name: 'x'.repeat(71) })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-g'), trip('user-a', { archived: 'yes' })));
 });
 
 test('an owner cannot transfer a trip to another account', async () => {
@@ -97,6 +100,7 @@ test('another account cannot read, change, or add records to an owned trip', asy
   await assertFails(getDoc(doc(db, 'trips', 'trip-a')));
   await assertFails(getDocs(query(collection(db, 'trips'), where('ownerId', '==', 'user-a'))));
   await assertFails(updateDoc(doc(db, 'trips', 'trip-a'), { name: 'Taken over', updatedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(db, 'trips', 'trip-a'), { archived: true, updatedAt: serverTimestamp() }));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'activity-a'), activity()));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'expense-a'), expense()));
   await assertFails(getDocs(collection(db, 'trips', 'trip-a', 'expenses')));

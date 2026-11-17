@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   ArrowRight,
+  Archive,
   CalendarDays,
   Check,
   CircleCheck,
@@ -15,6 +16,7 @@ import {
   Plus,
   Receipt,
   Search,
+  RotateCcw,
   Settings as SettingsIcon,
   Trash2,
   X,
@@ -666,7 +668,11 @@ function AppWorkspace() {
   const [settings, setSettings] = useState<UserSettings>(loadUserSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [expenseActivityId, setExpenseActivityId] = useState<string>();
-  const activeTrip = trips.find((trip) => trip.id === activeTripId);
+  const [tripListMode, setTripListMode] = useState<'active' | 'archived'>('active');
+  const activeTrips = trips.filter((trip) => !trip.archived);
+  const archivedTrips = trips.filter((trip) => trip.archived);
+  const visibleTrips = tripListMode === 'active' ? activeTrips : archivedTrips;
+  const activeTrip = trips.find((trip) => trip.id === activeTripId && !trip.archived);
   const canLoadTrips = !auth.configured || Boolean(auth.user);
 
   useEffect(() => {
@@ -683,7 +689,9 @@ function AppWorkspace() {
       .then((loadedTrips) => {
         if (!active) return;
         setTrips(loadedTrips);
-        setActiveTripId((current) => current || loadedTrips[0]?.id || '');
+        setActiveTripId((current) => loadedTrips.some((trip) => trip.id === current && !trip.archived)
+          ? current
+          : loadedTrips.find((trip) => !trip.archived)?.id ?? '');
         setStorageError(false);
       })
       .catch(() => {
@@ -699,7 +707,27 @@ function AppWorkspace() {
   async function refreshTrips(): Promise<void> {
     const loadedTrips = await repository.listTrips();
     setTrips(loadedTrips);
+    setActiveTripId((current) => loadedTrips.some((trip) => trip.id === current && !trip.archived)
+      ? current
+      : loadedTrips.find((trip) => !trip.archived)?.id ?? '');
     setStorageError(false);
+  }
+
+  async function setTripArchived(trip: Trip, archived: boolean) {
+    const action = archived ? 'Archive' : 'Restore';
+    const detail = archived
+      ? 'It will be hidden from active trips. Its activities, expenses, and photos will be kept.'
+      : 'It will return to your active trips.';
+    if (!window.confirm(`${action} "${trip.name}"? ${detail}`)) return;
+
+    try {
+      await repository.setTripArchived(trip.id, archived);
+      await refreshTrips();
+      if (archived && activeTripId === trip.id) setCurrentView('trips');
+      if (!archived && !activeTripId) setActiveTripId(trip.id);
+    } catch {
+      setStorageError(true);
+    }
   }
 
   function updateSettings(nextSettings: UserSettings) {
@@ -834,7 +862,7 @@ function AppWorkspace() {
             <span className="brand-wordmark">gala<span>·</span>nanaman</span>
           </a>
           <nav className="workspace-tabs" aria-label="Workspace views">
-            <button className={currentView === 'trips' ? 'active' : ''} aria-current={currentView === 'trips' ? 'page' : undefined} onClick={() => setCurrentView('trips')}><MapPin size={15} /> Trips <span>{trips.length}</span></button>
+            <button className={currentView === 'trips' ? 'active' : ''} aria-current={currentView === 'trips' ? 'page' : undefined} onClick={() => setCurrentView('trips')}><MapPin size={15} /> Trips <span>{activeTrips.length}</span></button>
             <button className={currentView === 'itinerary' ? 'active' : ''} aria-current={currentView === 'itinerary' ? 'page' : undefined} disabled={!activeTrip} onClick={() => setCurrentView('itinerary')}><ListChecks size={15} /> Itinerary</button>
             <button className={currentView === 'expenses' ? 'active' : ''} aria-current={currentView === 'expenses' ? 'page' : undefined} disabled={!activeTrip} onClick={() => setCurrentView('expenses')}><Receipt size={15} /> Expenses</button>
           </nav>
@@ -860,8 +888,13 @@ function AppWorkspace() {
             </section>
 
             {trips.length ? (
-              <section className="trip-overview-list" aria-label="Saved trips">
-                {trips.map((trip, index) => (
+              <>
+                <div className="trip-list-mode segmented-control" role="group" aria-label="Trip status">
+                  <button className={tripListMode === 'active' ? 'selected' : ''} aria-pressed={tripListMode === 'active'} onClick={() => setTripListMode('active')}>Active <span>{activeTrips.length}</span></button>
+                  <button className={tripListMode === 'archived' ? 'selected' : ''} aria-pressed={tripListMode === 'archived'} onClick={() => setTripListMode('archived')}>Archived <span>{archivedTrips.length}</span></button>
+                </div>
+                {visibleTrips.length ? <section className="trip-overview-list" aria-label={tripListMode === 'active' ? 'Active trips' : 'Archived trips'}>
+                {visibleTrips.map((trip, index) => (
                   <article className="trip-overview-row" key={trip.id}>
                     <span className={`overview-trip-marker marker-${index % 3}`}><MapPin size={18} /></span>
                     <div className="overview-trip-main">
@@ -871,12 +904,20 @@ function AppWorkspace() {
                     <div className="overview-trip-dates"><CalendarDays size={15} /><span>{dateRange(trip.startDate, trip.endDate)}</span></div>
                     <div className="overview-trip-count"><strong>{trip.activities.length}</strong><span>activities</span></div>
                     <div className="overview-trip-actions">
-                      <button className="icon-button" aria-label={`Edit ${trip.name}`} title="Edit trip" onClick={() => setDialog({ kind: 'trip', trip })}><Pencil size={15} /></button>
-                      <button className="button button-outline" onClick={() => { setActiveTripId(trip.id); setCurrentView('itinerary'); }}>Open itinerary <ArrowRight size={15} /></button>
+                      {trip.archived ? (
+                        <button className="icon-button" aria-label={`Restore ${trip.name}`} title="Restore trip" onClick={() => { void setTripArchived(trip, false); }}><RotateCcw size={15} /></button>
+                      ) : (
+                        <>
+                          <button className="icon-button" aria-label={`Edit ${trip.name}`} title="Edit trip" onClick={() => setDialog({ kind: 'trip', trip })}><Pencil size={15} /></button>
+                          <button className="icon-button" aria-label={`Archive ${trip.name}`} title="Archive trip" onClick={() => { void setTripArchived(trip, true); }}><Archive size={15} /></button>
+                          <button className="button button-outline" onClick={() => { setActiveTripId(trip.id); setCurrentView('itinerary'); }}>Open itinerary <ArrowRight size={15} /></button>
+                        </>
+                      )}
                     </div>
                   </article>
                 ))}
-              </section>
+                </section> : <div className="empty-state trips-empty-state"><span className="empty-icon">{tripListMode === 'archived' ? <Archive size={20} /> : <MapPin size={20} />}</span><h3>No {tripListMode} trips</h3><p>{tripListMode === 'archived' ? 'Archived trips will appear here and can be restored.' : 'Create a trip to start a separate itinerary workspace.'}</p>{tripListMode === 'active' && <button className="button button-primary add-trip-button" onClick={() => setDialog({ kind: 'trip' })}><Plus size={17} /> Add your first trip</button>}</div>}
+              </>
             ) : loadingTrips ? (
               <div className="empty-state trips-empty-state" role="status">Loading trips…</div>
             ) : (

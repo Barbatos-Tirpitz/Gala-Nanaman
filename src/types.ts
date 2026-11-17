@@ -48,5 +48,6 @@ export interface Trip {
   budgetMinor: number;
   activities: Activity[];
   expenses: Expense[];
+  archived?: boolean;
   completedDayDates?: string[];
 }
