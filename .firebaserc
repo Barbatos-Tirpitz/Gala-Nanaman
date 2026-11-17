@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "gala-nanaman"
-  }
+    "dev": "gala-nanaman-dev",
+    "prod": "gala-nanaman"
+  },
+  "targets": {},
+  "etags": {}
 }

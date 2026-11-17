@@ -380,7 +380,11 @@ To connect Firebase on the no-cost Spark plan:
     Firestore Rules are the security boundary.
 5.  Deploy the rules with `npx firebase-tools deploy --only
     firestore:rules --project <project-id>`.
-6.  With Java 11 or newer installed, run `npm run test:rules` to check
+6.  Build and deploy the website with `npm run build` followed by
+    `npx firebase-tools deploy --only hosting --project <project-id>`.
+    Firebase Hosting serves the generated `dist` directory; keep the Vite
+    entry point at the project root.
+7.  With Java 11 or newer installed, run `npm run test:rules` to check
     owner isolation and data validation.
 
 The app does not use Cloud Functions, so no paid plan is required.
