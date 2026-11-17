@@ -71,6 +71,7 @@ The application is intended to support both **solo planning** and
 
 -   Add destinations and activities to a trip.
 -   Schedule activities with start and end times.
+-   Attach on-device photos and optional outfit-of-the-day notes to activities.
 -   Organize activities chronologically.
 -   Add descriptions, notes, and relevant links.
 -   View the itinerary as a timeline or on a map.
@@ -86,6 +87,7 @@ The application is intended to support both **solo planning** and
 ### Expenses and Budgeting
 
 -   Set an overall trip budget.
+-   Convert a trip's currency using a dated reference rate with a confirmation preview.
 -   Record expenses and identify the person who paid.
 -   Define participants included in an expense.
 -   Support equal and custom expense splits.
@@ -334,12 +336,13 @@ entities:
 | Data store | Cloud Firestore | Owner-scoped trip, activity, and expense records |
 | Development fallback | Browser local storage | Local prototype only; not used in production builds |
 | User preferences | Browser local storage | Time display and default currency for new trips |
+| Currency conversion | Frankfurter API | Current reference rate fetched only when converting a trip |
 | Activity photos | IndexedDB | Manual image attachments stored on this device only |
 | Maps | OpenStreetMap, Photon, OSRM demo | Prototype place search, tiles, and driving estimate |
 | Photos | Wikimedia Commons | Prototype place imagery with source links |
 | Usage limits | Browser-enforced daily limits per account | Fair-use caps for place, route, and photo lookups |
 | Rule tests | Firebase Emulator and Rules Unit Testing | Verify owner-only database access |
-| Unit tests | Vitest | Usage-limit logic |
+| Unit tests | Vitest | Currency conversion and usage-limit logic |
 | Offline support | IndexedDB and service worker | Deferred; no offline trip cache in the MVP |
 | Version control | GitHub | Source code and project documentation |
 
@@ -386,7 +389,11 @@ prototype storage. Production builds refuse to run without Firebase
 configuration. Do not enter sensitive personal or booking information in
 local prototype mode. Map previews use public OpenStreetMap, Photon, OSRM
 demo, and Wikimedia Commons services; queries and coordinates are sent to
-those providers, and routes are not for navigation.
+those providers, and routes are not for navigation. Activity photo blobs
+remain in this browser's IndexedDB and are not uploaded or synced to other
+devices. Currency conversion sends only the source and target currency codes
+to Frankfurter; trip and expense details are not sent. Converted amounts use
+the latest available reference rate and may differ from a payment provider's rate.
 
 ## Mobile Builds
 

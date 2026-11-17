@@ -18,6 +18,7 @@ export interface Activity {
   location?: PlaceLocation;
   outfitOfDay?: boolean;
   outfitNotes?: string;
+  outfitPhoto?: { id: string; name: string; mimeType: string; size: number } | null;
   photos?: Array<{ id: string; name: string; mimeType: string; size: number }>;
 }
 

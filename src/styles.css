@@ -306,14 +306,28 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .settings-option { display: grid; gap: 10px; }
 .settings-option > div:first-child { display: grid; gap: 4px; color: #4b5a50; font-size: 11px; }
 .settings-option > div:first-child span { color: #87928a; font-size: 10px; font-weight: 400; }
-.toggle-row { display: flex !important; grid-template-columns: none !important; align-items: center; gap: 9px !important; min-height: 36px; }
-.toggle-row input { flex: 0 0 auto; width: 16px; min-height: 16px; accent-color: var(--forest); }
+.toggle-row { width: fit-content; max-width: 100%; display: flex !important; grid-template-columns: none !important; align-items: center; gap: 9px !important; min-height: 36px; }
+.toggle-row input { flex: 0 0 16px; width: 16px; height: 16px; min-height: 16px; margin: 0; accent-color: var(--forest); }
 
 .modal-backdrop { position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; padding: 18px; background: #1d2c2480; overscroll-behavior: contain; animation: fade-in 140ms ease-out; }
 .modal-panel { position: relative; z-index: 10001; width: min(500px, 100%); max-height: min(90dvh, 760px); overflow-y: auto; overscroll-behavior: contain; padding: 22px; border: 1px solid #e4e9e4; border-radius: 8px; background: white; box-shadow: 0 20px 70px #1222192e; animation: rise-in 180ms ease-out; }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 19px; }
 .modal-heading h2 { margin: 0; color: #2b3b32; font-family: 'Newsreader', Georgia, serif; font-size: 25px; font-weight: 500; }
 .dialog-form { display: grid; gap: 14px; }
+.trip-editor-fields { display: grid; gap: 14px; }
+.trip-editor-fields[hidden] { display: none; }
+.currency-confirmation { display: grid; gap: 12px; }
+.currency-confirmation h3 { margin: 0; color: #293a31; font-family: 'Newsreader', Georgia, serif; font-size: 21px; font-weight: 500; }
+.currency-confirmation p { margin: 0; line-height: 1.5; }
+.currency-rate { color: #35634b; font-size: 16px; font-weight: 700; }
+.currency-conversion-summary { display: grid; gap: 8px; margin: 0; border-top: 1px solid #e8ede8; border-bottom: 1px solid #e8ede8; padding: 11px 0; }
+.currency-conversion-summary > div, .currency-expense-preview > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.currency-conversion-summary dt { color: #6a786e; font-size: 11px; }
+.currency-conversion-summary dd { margin: 0; color: #293a31; font-size: 12px; font-weight: 700; text-align: right; }
+.currency-expense-preview { display: grid; gap: 7px; max-height: 150px; overflow-y: auto; border: 1px solid #e8ede8; border-radius: 5px; padding: 9px; }
+.currency-expense-preview > div { font-size: 10px; }
+.currency-expense-preview span { min-width: 0; overflow: hidden; color: #68766d; text-overflow: ellipsis; white-space: nowrap; }
+.currency-expense-preview strong { flex: 0 0 auto; color: #293a31; font-size: 10px; text-align: right; }
 .dialog-form label { display: grid; gap: 6px; color: #4b5a50; font-size: 11px; font-weight: 700; }
 .dialog-form input, .dialog-form select, .dialog-form textarea { width: 100%; min-height: 39px; border: 1px solid #dce3dc; border-radius: 5px; padding: 8px 10px; color: #293a31; background: #fcfdfb; font-size: 12px; font-weight: 500; }
 .dialog-form textarea { min-height: 76px; resize: vertical; }

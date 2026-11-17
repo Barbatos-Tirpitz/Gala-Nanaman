@@ -27,8 +27,10 @@ import ActivityPhotoGallery from './ActivityPhotoGallery';
 import ModalShell from './ModalShell';
 import ExpensesView from './ExpensesView';
 import { DailyLimitError, reversePlace, searchPlaces } from './services/geo';
+import { fetchExchangeRate } from './services/currency';
 import type { Activity, ActivityCategory, Expense, PlaceLocation, Trip } from './types';
 import { currencyFractionDigits, formatAmount, parseAmountToMinorUnits } from './money';
+import { convertExpense, convertMinorUnits } from './currencyConversion';
 import SettingsDialog from './SettingsDialog';
 import { formatTime, loadUserSettings, saveUserSettings, type UserSettings } from './settings';
 import { deleteLocalPhoto, saveLocalPhoto, type LocalPhotoRef } from './localPhotos';
@@ -97,6 +99,19 @@ function nextActivityDefaults(trip: Trip): { date: string; startTime: string; en
   return { date, startTime: toTime(startMinutes), endTime: toTime(endMinutes) };
 }
 
+type TripDraft = Omit<Trip, 'id' | 'activities' | 'expenses'>;
+
+interface CurrencyConversionPreview {
+  values: TripDraft;
+  expenses: Expense[];
+  sourceCurrencyCode: string;
+  targetCurrencyCode: string;
+  rate: number;
+  rateDate: string;
+  previousBudgetMinor: number;
+  previousExpenseTotalMinor: number;
+}
+
 function TripDialog({
   trip,
   defaultCurrencyCode,
@@ -106,44 +121,93 @@ function TripDialog({
   trip?: Trip;
   defaultCurrencyCode: string;
   onClose: () => void;
-  onSave: (values: Omit<Trip, 'id' | 'activities' | 'expenses'>, id?: string) => void;
+  onSave: (values: TripDraft, id?: string, convertedExpenses?: Expense[]) => Promise<void>;
 }) {
   const [budgetError, setBudgetError] = useState('');
-  const currencyLocked = Boolean(trip && (trip.budgetMinor > 0 || trip.expenses.length > 0));
+  const [selectedCurrencyCode, setSelectedCurrencyCode] = useState(trip?.currencyCode ?? defaultCurrencyCode);
+  const [conversionPreview, setConversionPreview] = useState<CurrencyConversionPreview>();
+  const [conversionError, setConversionError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [isLoadingRate, setIsLoadingRate] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function save(values: TripDraft, convertedExpenses?: Expense[]) {
+    setIsSaving(true);
+    setSaveError('');
+    try {
+      await onSave(values, trip?.id, convertedExpenses);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save this trip.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isLoadingRate || isSaving) return;
     const formData = new FormData(event.currentTarget);
     const startDate = String(formData.get('startDate'));
     const endDate = String(formData.get('endDate'));
     const currencyCode = String(formData.get('currencyCode') ?? trip?.currencyCode ?? defaultCurrencyCode);
     const budget = String(formData.get('budget')).trim();
-    const budgetMinor = budget ? parseAmountToMinorUnits(budget, currencyCode) : 0;
+    const budgetCurrencyCode = trip?.currencyCode ?? currencyCode;
+    const budgetMinor = budget ? parseAmountToMinorUnits(budget, budgetCurrencyCode) : 0;
 
     if (endDate < startDate) return;
     if (budgetMinor === undefined) {
-      setBudgetError(`Enter a valid ${currencyCode} amount with up to ${currencyFractionDigits(currencyCode)} decimal places.`);
+      setBudgetError(`Enter a valid ${budgetCurrencyCode} amount with up to ${currencyFractionDigits(budgetCurrencyCode)} decimal places.`);
       return;
     }
     setBudgetError('');
 
-    onSave(
-      {
-        name: String(formData.get('name')).trim(),
-        destination: String(formData.get('destination')).trim(),
-        startDate,
-        endDate,
-        timeZone: String(formData.get('timeZone')).trim(),
-        currencyCode,
-        budgetMinor,
-      },
-      trip?.id,
-    );
+    const values: TripDraft = {
+      name: String(formData.get('name')).trim(),
+      destination: String(formData.get('destination')).trim(),
+      startDate,
+      endDate,
+      timeZone: String(formData.get('timeZone')).trim(),
+      currencyCode,
+      budgetMinor,
+    };
+
+    if (trip && currencyCode !== trip.currencyCode && (budgetMinor > 0 || trip.expenses.length > 0)) {
+      setIsLoadingRate(true);
+      setConversionError('');
+      try {
+        const exchange = await fetchExchangeRate(trip.currencyCode, currencyCode);
+        const convertedBudgetMinor = convertMinorUnits(budgetMinor, trip.currencyCode, currencyCode, exchange.rate);
+        const convertedExpenses = trip.expenses.map((expense) => convertExpense(expense, trip.currencyCode, currencyCode, exchange.rate));
+        setConversionPreview({
+          values: { ...values, budgetMinor: convertedBudgetMinor },
+          expenses: convertedExpenses,
+          sourceCurrencyCode: trip.currencyCode,
+          targetCurrencyCode: currencyCode,
+          rate: exchange.rate,
+          rateDate: exchange.date,
+          previousBudgetMinor: budgetMinor,
+          previousExpenseTotalMinor: trip.expenses.reduce((total, expense) => total + expense.amountMinor, 0),
+        });
+      } catch (error) {
+        setConversionError(error instanceof Error ? error.message : 'Could not retrieve the live exchange rate.');
+      } finally {
+        setIsLoadingRate(false);
+      }
+      return;
+    }
+
+    await save(values);
+  }
+
+  function closeDialog() {
+    if (isLoadingRate || isSaving) return;
+    onClose();
   }
 
   return (
-    <Modal title={trip ? 'Edit trip details' : 'Create a trip'} onClose={onClose}>
+    <Modal title={trip ? 'Edit trip details' : 'Create a trip'} onClose={closeDialog}>
       <form className="dialog-form" onSubmit={handleSubmit}>
+        <div className="trip-editor-fields" hidden={Boolean(conversionPreview)}>
         <label>
           Trip name
           <input name="name" defaultValue={trip?.name} required maxLength={70} autoFocus />
@@ -169,12 +233,12 @@ function TripDialog({
         </label>
         <div className="field-row">
           <label>
-            Budget <span className="optional-label">Optional</span>
-            <input name="budget" type="number" min="0" step={1 / (10 ** currencyFractionDigits(trip?.currencyCode ?? defaultCurrencyCode))} defaultValue={trip?.budgetMinor ? trip.budgetMinor / (10 ** currencyFractionDigits(trip.currencyCode)) : ''} placeholder="0" onChange={() => setBudgetError('')} />
+            Budget ({trip?.currencyCode ?? selectedCurrencyCode}) <span className="optional-label">Optional</span>
+            <input name="budget" type="number" min="0" step={1 / (10 ** currencyFractionDigits(trip?.currencyCode ?? selectedCurrencyCode))} defaultValue={trip?.budgetMinor ? trip.budgetMinor / (10 ** currencyFractionDigits(trip.currencyCode)) : ''} placeholder="0" onChange={() => setBudgetError('')} />
           </label>
           <label>
             Currency
-            <select name="currencyCode" defaultValue={trip?.currencyCode ?? defaultCurrencyCode} disabled={currencyLocked}>
+            <select name="currencyCode" value={selectedCurrencyCode} disabled={isLoadingRate || isSaving} onChange={(event) => { setSelectedCurrencyCode(event.target.value); setConversionError(''); }}>
               <option value="PHP">PHP · Philippine Peso</option>
               <option value="USD">USD · US Dollar</option>
               <option value="CAD">CAD · Canadian Dollar</option>
@@ -183,14 +247,41 @@ function TripDialog({
               <option value="JPY">JPY · Japanese Yen</option>
               <option value="AUD">AUD · Australian Dollar</option>
             </select>
-            {currencyLocked && <span className="field-hint">Currency is locked after setting a budget or recording expenses.</span>}
+            {trip && <span className="field-hint">The budget is entered in {trip.currencyCode} and converted with the current reference rate.</span>}
           </label>
         </div>
         {budgetError && <p className="form-error" role="alert">{budgetError}</p>}
+        {conversionError && <p className="form-error" role="alert">{conversionError}</p>}
+        {saveError && <p className="form-error" role="alert">{saveError}</p>}
         <div className="dialog-actions">
-          <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
-          <button className="button button-primary" type="submit"><Check size={16} /> Save trip</button>
+          <button className="button button-quiet" type="button" disabled={isLoadingRate || isSaving} onClick={closeDialog}>Cancel</button>
+          <button className="button button-primary" type="submit" disabled={isLoadingRate || isSaving}><Check size={16} /> {isLoadingRate ? 'Getting current rate…' : isSaving ? 'Saving…' : 'Save trip'}</button>
         </div>
+        </div>
+        {conversionPreview && (
+          <section className="currency-confirmation" role="alertdialog" aria-labelledby="currency-confirmation-title">
+            <h3 id="currency-confirmation-title">Convert this trip to {conversionPreview.targetCurrencyCode}?</h3>
+            <p className="currency-rate">1 {conversionPreview.sourceCurrencyCode} = {conversionPreview.rate.toLocaleString(undefined, { maximumSignificantDigits: 8 })} {conversionPreview.targetCurrencyCode}</p>
+            <p className="field-hint">Reference rate dated {conversionPreview.rateDate}, from Frankfurter. Your bank or card provider may use a different rate.</p>
+            <dl className="currency-conversion-summary">
+              <div><dt>Trip budget</dt><dd>{formatAmount(conversionPreview.previousBudgetMinor, conversionPreview.sourceCurrencyCode)} → {formatAmount(conversionPreview.values.budgetMinor, conversionPreview.targetCurrencyCode)}</dd></div>
+              <div><dt>Recorded expenses ({conversionPreview.expenses.length})</dt><dd>{formatAmount(conversionPreview.previousExpenseTotalMinor, conversionPreview.sourceCurrencyCode)} → {formatAmount(conversionPreview.expenses.reduce((total, expense) => total + expense.amountMinor, 0), conversionPreview.targetCurrencyCode)}</dd></div>
+            </dl>
+            {conversionPreview.expenses.length > 0 && (
+              <div className="currency-expense-preview" aria-label="Converted expense amounts">
+                {conversionPreview.expenses.map((expense, index) => (
+                  <div key={expense.id}><span>{expense.title}</span><strong>{formatAmount(trip?.expenses[index].amountMinor ?? 0, conversionPreview.sourceCurrencyCode)} → {formatAmount(expense.amountMinor, conversionPreview.targetCurrencyCode)}</strong></div>
+                ))}
+              </div>
+            )}
+            <p className="field-hint">All expense splits will be adjusted to match their converted totals. This replaces the existing amounts; the trip and its expenses are saved together.</p>
+            {saveError && <p className="form-error" role="alert">{saveError}</p>}
+            <div className="dialog-actions">
+              <button className="button button-quiet" type="button" disabled={isSaving} onClick={() => { setConversionPreview(undefined); setSaveError(''); }}>Back</button>
+              <button className="button button-primary" type="button" disabled={isSaving} onClick={() => void save(conversionPreview.values, conversionPreview.expenses)}><Check size={16} /> {isSaving ? 'Converting…' : 'Confirm conversion'}</button>
+            </div>
+          </section>
+        )}
       </form>
     </Modal>
   );
@@ -217,10 +308,14 @@ function ActivityDialog({
   const [mapPickerCenter, setMapPickerCenter] = useState<PlaceLocation | undefined>(activity?.location ?? trip.activities.find((item) => item.location)?.location);
   const [mapPickerState, setMapPickerState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle');
   const [activityPhotos, setActivityPhotos] = useState<LocalPhotoRef[]>(activity?.photos ?? []);
-  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  const [outfitPhoto, setOutfitPhoto] = useState<LocalPhotoRef | undefined>(activity?.outfitPhoto ?? undefined);
+  const [pendingPhotoRefs, setPendingPhotoRefs] = useState<LocalPhotoRef[]>([]);
   const [outfitOfDay, setOutfitOfDay] = useState(activity?.outfitOfDay ?? false);
   const [outfitNotes, setOutfitNotes] = useState(activity?.outfitNotes ?? '');
   const [photoError, setPhotoError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const query = placeQuery.trim();
@@ -290,8 +385,87 @@ function ActivityDialog({
       });
   }
 
+  async function addPhotos(fileList: FileList | null) {
+    const incoming = Array.from(fileList ?? []);
+    if (!incoming.length) return;
+    if (activityPhotos.length + incoming.length > 5) {
+      setPhotoError('You can attach up to five photos to an activity.');
+      return;
+    }
+    if (incoming.some((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
+      setPhotoError('Choose image files no larger than 5 MB each.');
+      return;
+    }
+
+    setIsUploadingPhotos(true);
+    setPhotoError('');
+    const saved: LocalPhotoRef[] = [];
+    try {
+      for (const file of incoming) saved.push(await saveLocalPhoto(file));
+      setActivityPhotos((current) => [...current, ...saved]);
+      setPendingPhotoRefs((current) => [...current, ...saved]);
+    } catch (error) {
+      await Promise.all(saved.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+      setPhotoError(error instanceof Error ? error.message : 'Could not save the selected photo locally.');
+    } finally {
+      setIsUploadingPhotos(false);
+    }
+  }
+
+  async function addOutfitPhoto(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+    if (fileList && fileList.length > 1) {
+      setPhotoError('Choose one outfit photo.');
+      return;
+    }
+    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+      setPhotoError('Choose an image no larger than 5 MB.');
+      return;
+    }
+
+    setIsUploadingPhotos(true);
+    setPhotoError('');
+    try {
+      const saved = await saveLocalPhoto(file);
+      const previous = outfitPhoto;
+      setOutfitPhoto(saved);
+      setPendingPhotoRefs((current) => [...current.filter((photo) => photo.id !== previous?.id), saved]);
+      if (previous && pendingPhotoRefs.some((photo) => photo.id === previous.id)) {
+        await deleteLocalPhoto(previous.id).catch(() => undefined);
+      }
+    } catch (error) {
+      setPhotoError(error instanceof Error ? error.message : 'Could not save the outfit photo locally.');
+    } finally {
+      setIsUploadingPhotos(false);
+    }
+  }
+
+  function removePhoto(photoId: string) {
+    setActivityPhotos((current) => current.filter((photo) => photo.id !== photoId));
+    if (!pendingPhotoRefs.some((photo) => photo.id === photoId)) return;
+    setPendingPhotoRefs((current) => current.filter((photo) => photo.id !== photoId));
+    void deleteLocalPhoto(photoId).catch(() => setPhotoError('Could not remove the photo from this device.'));
+  }
+
+  function removeOutfitPhoto() {
+    if (!outfitPhoto) return;
+    const photoId = outfitPhoto.id;
+    setOutfitPhoto(undefined);
+    if (!pendingPhotoRefs.some((photo) => photo.id === photoId)) return;
+    setPendingPhotoRefs((current) => current.filter((photo) => photo.id !== photoId));
+    void deleteLocalPhoto(photoId).catch(() => setPhotoError('Could not remove the outfit photo from this device.'));
+  }
+
+  function closeActivityDialog() {
+    if (isUploadingPhotos || isSaving) return;
+    void Promise.all(pendingPhotoRefs.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+    onClose();
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isUploadingPhotos || isSaving) return;
     const formData = new FormData(event.currentTarget);
     const startTime = String(formData.get('startTime'));
     const endTime = String(formData.get('endTime'));
@@ -301,34 +475,35 @@ function ActivityDialog({
     }
     setTimeError('');
 
-    let newlyStoredPhotos: LocalPhotoRef[] = [];
+    setIsSaving(true);
+    setSaveError('');
     try {
-      newlyStoredPhotos = await Promise.all(newPhotoFiles.map(saveLocalPhoto));
       await onSave(
         {
-        title: String(formData.get('title')).trim(),
-        date: String(formData.get('date')),
-        startTime,
-        endTime,
-        category: String(formData.get('category')) as ActivityCategory,
-        notes: String(formData.get('notes')).trim(),
-        outfitOfDay,
-        outfitNotes: outfitNotes.trim(),
-        photos: [...activityPhotos, ...newlyStoredPhotos],
-        ...(selectedLocation ? { location: selectedLocation } : {}),
+          title: String(formData.get('title')).trim(),
+          date: String(formData.get('date')),
+          startTime,
+          endTime,
+          category: String(formData.get('category')) as ActivityCategory,
+          notes: String(formData.get('notes')).trim(),
+          outfitOfDay,
+          outfitNotes: outfitNotes.trim(),
+          outfitPhoto: outfitPhoto ?? null,
+          photos: activityPhotos,
+          ...(selectedLocation ? { location: selectedLocation } : {}),
         },
         activity?.id,
       );
-      const retainedIds = new Set([...activityPhotos, ...newlyStoredPhotos].map((photo) => photo.id));
-      await Promise.all((activity?.photos ?? []).filter((photo) => !retainedIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
-    } catch {
-      await Promise.all(newlyStoredPhotos.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
-      setPhotoError('The activity or its photos could not be saved. Check local storage and try again.');
+      setPendingPhotoRefs([]);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'The activity could not be saved. Your local photos are still available to retry.');
+    } finally {
+      setIsSaving(false);
     }
   }
 
   return (
-    <Modal title={activity ? 'Edit activity' : 'Add to the itinerary'} onClose={onClose}>
+    <Modal title={activity ? 'Edit activity' : 'Add to the itinerary'} onClose={closeActivityDialog}>
       <form className="dialog-form" onSubmit={handleSubmit}>
         <label>
           Activity
@@ -408,10 +583,17 @@ function ActivityDialog({
           <span>Outfit of the day</span>
         </label>
         {outfitOfDay && (
-          <label>
-            Outfit notes <span className="optional-label">Optional</span>
-            <textarea value={outfitNotes} onChange={(event) => setOutfitNotes(event.target.value)} rows={2} maxLength={300} placeholder="Weather, layers, or packing note" />
-          </label>
+          <>
+            <label>
+              Outfit notes <span className="optional-label">Optional</span>
+              <textarea value={outfitNotes} onChange={(event) => setOutfitNotes(event.target.value)} rows={2} maxLength={300} placeholder="Weather, layers, or packing note" />
+            </label>
+            <label>
+              Outfit photo <span className="optional-label">Optional · saved on this device only</span>
+              <input type="file" accept="image/*" disabled={isUploadingPhotos} onChange={(event) => { void addOutfitPhoto(event.target.files); event.target.value = ''; }} />
+            </label>
+            <ActivityPhotoGallery photos={outfitPhoto ? [outfitPhoto] : []} newFiles={[]} label="Outfit photo" onRemoveStored={removeOutfitPhoto} />
+          </>
         )}
         <label>
           Photos <span className="optional-label">Optional · saved on this device only</span>
@@ -419,34 +601,20 @@ function ActivityDialog({
             type="file"
             accept="image/*"
             multiple
+            disabled={isUploadingPhotos}
             onChange={(event) => {
-              const incoming = Array.from(event.target.files ?? []);
-              if (activityPhotos.length + newPhotoFiles.length + incoming.length > 5) {
-                setPhotoError('You can attach up to five photos to an activity.');
-                event.target.value = '';
-                return;
-              }
-              if (incoming.some((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
-                setPhotoError('Choose image files no larger than 5 MB each.');
-                event.target.value = '';
-                return;
-              }
-              setPhotoError('');
-              setNewPhotoFiles((current) => [...current, ...incoming]);
+              void addPhotos(event.target.files);
               event.target.value = '';
             }}
           />
         </label>
-        <ActivityPhotoGallery
-          photos={activityPhotos}
-          newFiles={newPhotoFiles}
-          onRemoveStored={(id) => setActivityPhotos((current) => current.filter((photo) => photo.id !== id))}
-          onRemoveFile={(index) => setNewPhotoFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
-        />
+        {isUploadingPhotos && <p className="field-hint" role="status">Saving photo to this device…</p>}
+        <ActivityPhotoGallery photos={activityPhotos} newFiles={[]} onRemoveStored={removePhoto} onRemoveFile={() => undefined} />
         {photoError && <p className="form-error" role="alert">{photoError}</p>}
+        {saveError && <p className="form-error" role="alert">{saveError}</p>}
         <div className="dialog-actions">
-          <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
-          <button className="button button-primary" type="submit"><Check size={16} /> Save activity</button>
+          <button className="button button-quiet" type="button" disabled={isSaving || isUploadingPhotos} onClick={closeActivityDialog}>Cancel</button>
+          <button className="button button-primary" type="submit" disabled={isSaving || isUploadingPhotos}><Check size={16} /> {isSaving ? 'Saving…' : 'Save activity'}</button>
         </div>
       </form>
     </Modal>
@@ -526,23 +694,33 @@ function AppWorkspace() {
     }
   }
 
-  async function saveTrip(values: Omit<Trip, 'id' | 'activities' | 'expenses'>, id?: string) {
+  async function saveTrip(values: Omit<Trip, 'id' | 'activities' | 'expenses'>, id?: string, convertedExpenses?: Expense[]) {
     const existing = id ? trips.find((trip) => trip.id === id) : undefined;
     const savedTrip: Trip = existing
-      ? { ...existing, ...values }
+      ? { ...existing, ...values, ...(convertedExpenses ? { expenses: convertedExpenses } : {}) }
       : { ...values, id: createId(), activities: [], expenses: [] };
 
     try {
-      await repository.saveTrip(savedTrip);
+      if (convertedExpenses) await repository.saveCurrencyConversion(savedTrip);
+      else await repository.saveTrip(savedTrip);
+    } catch (error) {
+      setStorageError(true);
+      throw new Error(error instanceof Error ? error.message : 'Could not save this trip.');
+    }
+
+    try {
       await refreshTrips();
-      if (!existing) {
-        setActiveTripId(savedTrip.id);
-        setCurrentView('itinerary');
-      }
-      setDialog(null);
     } catch {
       setStorageError(true);
+      setTrips((current) => current.some((trip) => trip.id === savedTrip.id)
+        ? current.map((trip) => trip.id === savedTrip.id ? savedTrip : trip)
+        : [...current, savedTrip]);
     }
+    if (!existing) {
+      setActiveTripId(savedTrip.id);
+      setCurrentView('itinerary');
+    }
+    setDialog(null);
   }
 
   async function saveActivity(values: Omit<Activity, 'id'>, id?: string) {
@@ -556,8 +734,9 @@ function AppWorkspace() {
       setStorageError(true);
       throw new Error('Could not save this activity.');
     }
-    const retainedPhotoIds = new Set((activity.photos ?? []).map((photo) => photo.id));
-    await Promise.all((existing?.photos ?? []).filter((photo) => !retainedPhotoIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+    const retainedPhotoIds = new Set([...(activity.photos ?? []).map((photo) => photo.id), activity.outfitPhoto?.id]);
+    const previousPhotos = [...(existing?.photos ?? []), ...(existing?.outfitPhoto ? [existing.outfitPhoto] : [])];
+    await Promise.all(previousPhotos.filter((photo) => !retainedPhotoIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
     setDialog(null);
     try { await refreshTrips(); } catch { setStorageError(true); }
   }
@@ -566,7 +745,7 @@ function AppWorkspace() {
     if (!activeTrip || !window.confirm(`Remove "${activity.title}" from the itinerary?`)) return;
     try {
       await repository.deleteActivity(activeTrip.id, activity.id);
-      await Promise.all((activity.photos ?? []).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+      await Promise.all([...(activity.photos ?? []), ...(activity.outfitPhoto ? [activity.outfitPhoto] : [])].map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
       await refreshTrips();
     } catch {
       setStorageError(true);
@@ -761,6 +940,7 @@ function AppWorkspace() {
                                 {activity.location && <p className="activity-place"><MapPin size={12} /> {activity.location.label}</p>}
                                 {activity.notes && <p>{activity.notes}</p>}
                                 {activity.outfitNotes && <p>{activity.outfitNotes}</p>}
+                                {activity.outfitPhoto && <ActivityPhotoGallery photos={[activity.outfitPhoto]} newFiles={[]} readOnly label="Outfit photo" />}
                                 {activity.photos?.length ? <ActivityPhotoGallery photos={activity.photos} newFiles={[]} readOnly /> : null}
                                 {activeTrip.expenses.some((expense) => expense.activityId === activity.id) && <p className="activity-expense-note">Spent {formatAmount(activeTrip.expenses.filter((expense) => expense.activityId === activity.id).reduce((sum, expense) => sum + expense.amountMinor, 0), activeTrip.currencyCode)}</p>}
                               </div>

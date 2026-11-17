@@ -14,12 +14,14 @@ export default function ActivityPhotoGallery({
   photos,
   newFiles,
   readOnly = false,
+  label = 'Activity photos',
   onRemoveStored,
   onRemoveFile,
 }: {
   photos: LocalPhotoRef[];
   newFiles: File[];
   readOnly?: boolean;
+  label?: string;
   onRemoveStored?: (id: string) => void;
   onRemoveFile?: (index: number) => void;
 }) {
@@ -59,7 +61,7 @@ export default function ActivityPhotoGallery({
   if (!photos.length && !newFiles.length) return null;
 
   return (
-    <div className="activity-photo-gallery" aria-label="Activity photos">
+    <div className="activity-photo-gallery" aria-label={label}>
       {previews.map((photo) => (
         <figure key={photo.key} className="activity-photo-preview">
           <img src={photo.url} alt={photo.name} />
