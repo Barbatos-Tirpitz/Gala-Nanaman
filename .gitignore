@@ -1,0 +1,8 @@
+MVP_SCOPE.md
+DECISIONS.md
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
