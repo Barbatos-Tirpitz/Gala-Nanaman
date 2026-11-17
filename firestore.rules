@@ -41,7 +41,7 @@ service cloud.firestore {
     }
 
     function validTrip(data) {
-      return hasExactly(data, ['name', 'destination', 'startDate', 'endDate', 'timeZone', 'currencyCode', 'budgetMinor', 'ownerId', 'updatedAt'], ['completedDayDates'])
+      return hasExactly(data, ['name', 'destination', 'startDate', 'endDate', 'timeZone', 'currencyCode', 'budgetMinor', 'ownerId', 'updatedAt'], ['archived', 'completedDayDates'])
         && isText(data.name, 1, 70)
         && isText(data.destination, 1, 80)
         && isDate(data.startDate)
@@ -50,6 +50,7 @@ service cloud.firestore {
         && isText(data.timeZone, 1, 64)
         && data.currencyCode in ['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'AUD', 'PHP']
         && isMinorAmount(data.budgetMinor, 0)
+        && (!('archived' in data) || data.archived is bool)
         && (!('completedDayDates' in data) || (data.completedDayDates is list && data.completedDayDates.size() <= 366))
         && data.ownerId == request.auth.uid
         && data.updatedAt == request.time;

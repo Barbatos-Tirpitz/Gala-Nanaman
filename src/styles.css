@@ -74,6 +74,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .button.button-primary.add-trip-button { min-height: 42px; padding: 0 16px; color: #fff; background: #b94f38; box-shadow: 0 2px 6px #9a3e2d30; }
 .button.button-primary.add-trip-button:hover { color: #fff; background: #963b29; }
 .trip-overview-list { display: grid; border-top: 1px solid #dfe6df; }
+.trip-list-mode { margin: -8px 0 16px; }
+.trip-list-mode button span { min-width: 16px; color: #8a958d; font-size: 9px; text-align: center; }
 .trip-overview-row { display: grid; grid-template-columns: 42px minmax(140px, 1.3fr) minmax(150px, 1fr) 92px auto; align-items: center; gap: 18px; min-height: 91px; padding: 14px 5px; border-bottom: 1px solid #dfe6df; }
 .overview-trip-main { min-width: 0; }
 .overview-trip-main h2 { overflow: hidden; margin: 0 0 5px; color: #304137; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }

@@ -6,6 +6,7 @@ import {
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
   writeBatch,
   type Firestore,
@@ -63,6 +64,15 @@ export class FirestoreTripRepository implements TripRepository {
       batch.set(doc(this.db, 'trips', id, 'expenses', expenseId), expenseFields);
     });
     await batch.commit();
+  }
+
+  async setTripArchived(tripId: string, archived: boolean): Promise<void> {
+    const user = this.requireUser();
+    await updateDoc(doc(this.db, 'trips', tripId), {
+      archived,
+      ownerId: user.uid,
+      updatedAt: serverTimestamp(),
+    });
   }
 
   async saveActivity(tripId: string, activity: Activity): Promise<void> {
