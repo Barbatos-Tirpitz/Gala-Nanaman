@@ -369,23 +369,51 @@ npm run build
 
 Run the unit tests with `npm test`.
 
-To connect Firebase on the no-cost Spark plan:
+### Firebase development and production projects
 
-1.  Create a Firebase project and register a web app.
-2.  In Authentication, enable the Google provider and add your local and
-    deployed hosts to Authorized domains.
-3.  Create a Cloud Firestore database.
-4.  Copy `.env.example` to `.env.local` and fill in the web app settings.
-    Keep `.env.local` out of version control. The web config is public;
-    Firestore Rules are the security boundary.
-5.  Deploy the rules with `npx firebase-tools deploy --only
-    firestore:rules --project <project-id>`.
-6.  Build and deploy the website with `npm run build` followed by
-    `npx firebase-tools deploy --only hosting --project <project-id>`.
-    Firebase Hosting serves the generated `dist` directory; keep the Vite
-    entry point at the project root.
-7.  With Java 11 or newer installed, run `npm run test:rules` to check
-    owner isolation and data validation.
+Use separate Firebase projects for development and production so test data
+and accounts stay separate from live data. Register a web app, enable Google
+Authentication, create a Cloud Firestore database, and configure authorized
+domains in each project. Add `localhost` and the development Hosting domain
+to the development project's authorized domains; add the production Hosting
+domain to the production project.
+
+Create `.env.development.local` and `.env.production.local` in the project
+root, using `.env.example` as a template. Fill each file with that
+environment's Firebase web app settings. Keep these files out of version
+control. Vite selects the matching file for each build mode; the Firebase web
+configuration is public, and Firestore Rules are the security boundary.
+
+The Firebase CLI project aliases are stored in `.firebaserc`. This repository
+uses `dev` for `gala-nanaman-dev` and `prod` for `gala-nanaman`. To configure
+aliases in another checkout, run `npx firebase-tools login`, then
+`npx firebase-tools use --add` once for each project and assign the aliases
+`dev` and `prod`.
+
+Build and deploy to development with:
+
+```sh
+npm run check
+npx vite build --mode development
+npx firebase-tools deploy --only hosting --project dev
+npx firebase-tools deploy --only firestore:rules --project dev
+```
+
+Build and deploy to production with:
+
+```sh
+npm run build
+npx firebase-tools deploy --only hosting --project prod
+npx firebase-tools deploy --only firestore:rules --project prod
+```
+
+`npm run build` uses Vite's production mode. Firebase Hosting serves the
+generated `dist` directory; keep the Vite entry point at the project root.
+Hosting and Firestore Rules deploy separately. Double-check the target alias
+before deploying, especially to `prod`.
+
+With Java 11 or newer installed, run `npm run test:rules` to check owner
+isolation and data validation.
 
 The app does not use Cloud Functions, so no paid plan is required.
 
