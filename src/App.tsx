@@ -3,6 +3,7 @@ import {
   ArrowRight,
   CalendarDays,
   Check,
+  CircleCheck,
   Clock3,
   Compass,
   List,
@@ -14,16 +15,23 @@ import {
   Plus,
   Receipt,
   Search,
+  Settings as SettingsIcon,
   Trash2,
   X,
 } from 'lucide-react';
 import { createId } from './storage';
 import { tripRepository } from './repositories/TripRepository';
 import RouteMap from './MapView';
+import MapPicker from './MapPicker';
+import ActivityPhotoGallery from './ActivityPhotoGallery';
+import ModalShell from './ModalShell';
 import ExpensesView from './ExpensesView';
-import { DailyLimitError, searchPlaces } from './services/geo';
+import { DailyLimitError, reversePlace, searchPlaces } from './services/geo';
 import type { Activity, ActivityCategory, Expense, PlaceLocation, Trip } from './types';
-import { currencyFractionDigits, parseAmountToMinorUnits } from './money';
+import { currencyFractionDigits, formatAmount, parseAmountToMinorUnits } from './money';
+import SettingsDialog from './SettingsDialog';
+import { formatTime, loadUserSettings, saveUserSettings, type UserSettings } from './settings';
+import { deleteLocalPhoto, saveLocalPhoto, type LocalPhotoRef } from './localPhotos';
 import { useAuth } from './auth/AuthContext';
 import SignInScreen from './auth/SignInScreen';
 import { firebaseAuth, firebaseConfigured, firestore } from './firebase';
@@ -60,12 +68,43 @@ function tripLength(start: string, end: string): number {
   return Math.max(1, Math.round((endDay - startDay) / 86_400_000) + 1);
 }
 
+function addCalendarDay(date: string): string {
+  const next = new Date(`${date}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+function nextActivityDefaults(trip: Trip): { date: string; startTime: string; endTime: string } {
+  const last = [...trip.activities].sort((left, right) => `${left.date}T${left.startTime}`.localeCompare(`${right.date}T${right.startTime}`)).at(-1);
+  let date = last?.date ?? trip.startDate;
+  let startMinutes = last ? Number(last.endTime.slice(0, 2)) * 60 + Number(last.endTime.slice(3, 5)) + 60 : 9 * 60;
+
+  if (startMinutes >= 24 * 60) {
+    date = addCalendarDay(date);
+    startMinutes %= 24 * 60;
+  }
+  if (startMinutes + 60 >= 24 * 60) {
+    date = addCalendarDay(date);
+    startMinutes = (startMinutes + 60) % (24 * 60);
+  }
+  if (date > trip.endDate) {
+    date = trip.startDate;
+    startMinutes = 9 * 60;
+  }
+
+  const endMinutes = (startMinutes + 60) % (24 * 60);
+  const toTime = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+  return { date, startTime: toTime(startMinutes), endTime: toTime(endMinutes) };
+}
+
 function TripDialog({
   trip,
+  defaultCurrencyCode,
   onClose,
   onSave,
 }: {
   trip?: Trip;
+  defaultCurrencyCode: string;
   onClose: () => void;
   onSave: (values: Omit<Trip, 'id' | 'activities' | 'expenses'>, id?: string) => void;
 }) {
@@ -77,7 +116,7 @@ function TripDialog({
     const formData = new FormData(event.currentTarget);
     const startDate = String(formData.get('startDate'));
     const endDate = String(formData.get('endDate'));
-    const currencyCode = String(formData.get('currencyCode') ?? trip?.currencyCode ?? 'USD');
+    const currencyCode = String(formData.get('currencyCode') ?? trip?.currencyCode ?? defaultCurrencyCode);
     const budget = String(formData.get('budget')).trim();
     const budgetMinor = budget ? parseAmountToMinorUnits(budget, currencyCode) : 0;
 
@@ -131,11 +170,12 @@ function TripDialog({
         <div className="field-row">
           <label>
             Budget <span className="optional-label">Optional</span>
-            <input name="budget" type="number" min="0" step="any" defaultValue={trip?.budgetMinor ? trip.budgetMinor / (10 ** currencyFractionDigits(trip.currencyCode)) : ''} placeholder="0" onChange={() => setBudgetError('')} />
+            <input name="budget" type="number" min="0" step={1 / (10 ** currencyFractionDigits(trip?.currencyCode ?? defaultCurrencyCode))} defaultValue={trip?.budgetMinor ? trip.budgetMinor / (10 ** currencyFractionDigits(trip.currencyCode)) : ''} placeholder="0" onChange={() => setBudgetError('')} />
           </label>
           <label>
             Currency
-            <select name="currencyCode" defaultValue={trip?.currencyCode ?? 'USD'} disabled={currencyLocked}>
+            <select name="currencyCode" defaultValue={trip?.currencyCode ?? defaultCurrencyCode} disabled={currencyLocked}>
+              <option value="PHP">PHP · Philippine Peso</option>
               <option value="USD">USD · US Dollar</option>
               <option value="CAD">CAD · Canadian Dollar</option>
               <option value="EUR">EUR · Euro</option>
@@ -165,12 +205,22 @@ function ActivityDialog({
   trip: Trip;
   activity?: Activity;
   onClose: () => void;
-  onSave: (values: Omit<Activity, 'id'>, id?: string) => void;
+  onSave: (values: Omit<Activity, 'id'>, id?: string) => Promise<void>;
 }) {
   const [placeQuery, setPlaceQuery] = useState(activity?.location?.label ?? '');
   const [selectedLocation, setSelectedLocation] = useState<PlaceLocation | undefined>(activity?.location);
   const [placeResults, setPlaceResults] = useState<PlaceLocation[]>([]);
   const [placeSearchState, setPlaceSearchState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle');
+  const defaults = nextActivityDefaults(trip);
+  const [timeError, setTimeError] = useState('');
+  const [mapPickerOpen, setMapPickerOpen] = useState(false);
+  const [mapPickerCenter, setMapPickerCenter] = useState<PlaceLocation | undefined>(activity?.location ?? trip.activities.find((item) => item.location)?.location);
+  const [mapPickerState, setMapPickerState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle');
+  const [activityPhotos, setActivityPhotos] = useState<LocalPhotoRef[]>(activity?.photos ?? []);
+  const [newPhotoFiles, setNewPhotoFiles] = useState<File[]>([]);
+  const [outfitOfDay, setOutfitOfDay] = useState(activity?.outfitOfDay ?? false);
+  const [outfitNotes, setOutfitNotes] = useState(activity?.outfitNotes ?? '');
+  const [photoError, setPhotoError] = useState('');
 
   useEffect(() => {
     const query = placeQuery.trim();
@@ -201,25 +251,80 @@ function ActivityDialog({
     };
   }, [placeQuery, selectedLocation?.label]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (!mapPickerOpen || mapPickerCenter) return;
+    const controller = new AbortController();
+    setMapPickerState('loading');
+    searchPlaces(trip.destination, 1, controller.signal)
+      .then(([place]) => {
+        if (controller.signal.aborted) return;
+        if (!place) {
+          setMapPickerState('error');
+          return;
+        }
+        setMapPickerCenter(place);
+        setMapPickerState('idle');
+      })
+      .catch((error: unknown) => {
+        if (!controller.signal.aborted) setMapPickerState(error instanceof DailyLimitError ? 'limit' : 'error');
+      });
+    return () => controller.abort();
+  }, [mapPickerOpen, mapPickerCenter, trip.destination]);
+
+  function handleMapPick(point: { latitude: number; longitude: number }) {
+    const pinnedLabel = `Pinned location (${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)})`;
+    const fallbackLocation: PlaceLocation = { ...point, label: pinnedLabel, searchTerm: pinnedLabel };
+    setSelectedLocation(fallbackLocation);
+    setPlaceQuery(pinnedLabel);
+    setMapPickerState('loading');
+
+    void reversePlace(point.latitude, point.longitude)
+      .then((place) => {
+        setSelectedLocation(place);
+        setPlaceQuery(place.label);
+        setMapPickerCenter(place);
+        setMapPickerState('idle');
+      })
+      .catch((error: unknown) => {
+        setMapPickerState(error instanceof DailyLimitError ? 'limit' : 'idle');
+      });
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const startTime = String(formData.get('startTime'));
     const endTime = String(formData.get('endTime'));
-    if (endTime <= startTime) return;
+    if (endTime <= startTime) {
+      setTimeError('End time must be later than start time. For an overnight stop, add it on the next date.');
+      return;
+    }
+    setTimeError('');
 
-    onSave(
-      {
+    let newlyStoredPhotos: LocalPhotoRef[] = [];
+    try {
+      newlyStoredPhotos = await Promise.all(newPhotoFiles.map(saveLocalPhoto));
+      await onSave(
+        {
         title: String(formData.get('title')).trim(),
         date: String(formData.get('date')),
         startTime,
         endTime,
         category: String(formData.get('category')) as ActivityCategory,
         notes: String(formData.get('notes')).trim(),
+        outfitOfDay,
+        outfitNotes: outfitNotes.trim(),
+        photos: [...activityPhotos, ...newlyStoredPhotos],
         ...(selectedLocation ? { location: selectedLocation } : {}),
-      },
-      activity?.id,
-    );
+        },
+        activity?.id,
+      );
+      const retainedIds = new Set([...activityPhotos, ...newlyStoredPhotos].map((photo) => photo.id));
+      await Promise.all((activity?.photos ?? []).filter((photo) => !retainedIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+    } catch {
+      await Promise.all(newlyStoredPhotos.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+      setPhotoError('The activity or its photos could not be saved. Check local storage and try again.');
+    }
   }
 
   return (
@@ -251,18 +356,27 @@ function ActivityDialog({
           {placeResults.length > 0 && (
             <div className="place-suggestions" role="listbox" aria-label="Place search results">
               {placeResults.map((place) => (
-                <button key={`${place.latitude}-${place.longitude}`} type="button" role="option" onClick={() => { setSelectedLocation(place); setPlaceQuery(place.label); setPlaceResults([]); }}>
+                <button key={`${place.latitude}-${place.longitude}`} type="button" role="option" onClick={() => { setSelectedLocation(place); setMapPickerCenter(place); setPlaceQuery(place.label); setPlaceResults([]); }}>
                   <MapPin size={14} /><span>{place.label}</span>
                 </button>
               ))}
             </div>
           )}
           <span className="field-hint">Search results are provided by Photon and OpenStreetMap.</span>
+          <button className="button button-outline map-picker-toggle" type="button" onClick={() => setMapPickerOpen((open) => !open)}><MapIcon size={15} /> {mapPickerOpen ? 'Hide map picker' : 'Choose exact point on map'}</button>
+          {mapPickerOpen && (
+            <div className="activity-map-picker">
+              {mapPickerState === 'loading' && !mapPickerCenter && <p className="field-hint">Locating the trip destination…</p>}
+              {mapPickerState === 'limit' && <p className="field-hint">Daily place lookup limit reached.</p>}
+              {mapPickerState === 'error' && !mapPickerCenter && <p className="field-hint">Search for a place above first, then select it to center the map.</p>}
+              {mapPickerCenter && <MapPicker center={mapPickerCenter} selected={selectedLocation} onPick={handleMapPick} />}
+            </div>
+          )}
         </label>
         <div className="field-row">
           <label>
             Date
-            <input name="date" type="date" min={trip.startDate} max={trip.endDate} defaultValue={activity?.date ?? trip.startDate} required />
+            <input name="date" type="date" min={trip.startDate} max={trip.endDate} defaultValue={activity?.date ?? defaults.date} required />
           </label>
           <label>
             Type
@@ -277,17 +391,59 @@ function ActivityDialog({
         <div className="field-row">
           <label>
             Starts
-            <input name="startTime" type="time" defaultValue={activity?.startTime ?? '09:00'} required />
+            <input name="startTime" type="time" defaultValue={activity?.startTime ?? defaults.startTime} required onChange={() => setTimeError('')} />
           </label>
           <label>
             Ends
-            <input name="endTime" type="time" defaultValue={activity?.endTime ?? '10:00'} required />
+            <input name="endTime" type="time" defaultValue={activity?.endTime ?? defaults.endTime} required onChange={() => setTimeError('')} />
           </label>
         </div>
+        {timeError && <p className="form-error" role="alert">{timeError}</p>}
         <label>
           Notes <span className="optional-label">Optional</span>
           <textarea name="notes" defaultValue={activity?.notes} rows={3} maxLength={400} placeholder="Reservations, reminders, or useful details" />
         </label>
+        <label className="toggle-row">
+          <input type="checkbox" checked={outfitOfDay} onChange={(event) => setOutfitOfDay(event.target.checked)} />
+          <span>Outfit of the day</span>
+        </label>
+        {outfitOfDay && (
+          <label>
+            Outfit notes <span className="optional-label">Optional</span>
+            <textarea value={outfitNotes} onChange={(event) => setOutfitNotes(event.target.value)} rows={2} maxLength={300} placeholder="Weather, layers, or packing note" />
+          </label>
+        )}
+        <label>
+          Photos <span className="optional-label">Optional · saved on this device only</span>
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(event) => {
+              const incoming = Array.from(event.target.files ?? []);
+              if (activityPhotos.length + newPhotoFiles.length + incoming.length > 5) {
+                setPhotoError('You can attach up to five photos to an activity.');
+                event.target.value = '';
+                return;
+              }
+              if (incoming.some((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
+                setPhotoError('Choose image files no larger than 5 MB each.');
+                event.target.value = '';
+                return;
+              }
+              setPhotoError('');
+              setNewPhotoFiles((current) => [...current, ...incoming]);
+              event.target.value = '';
+            }}
+          />
+        </label>
+        <ActivityPhotoGallery
+          photos={activityPhotos}
+          newFiles={newPhotoFiles}
+          onRemoveStored={(id) => setActivityPhotos((current) => current.filter((photo) => photo.id !== id))}
+          onRemoveFile={(index) => setNewPhotoFiles((current) => current.filter((_, fileIndex) => fileIndex !== index))}
+        />
+        {photoError && <p className="form-error" role="alert">{photoError}</p>}
         <div className="dialog-actions">
           <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
           <button className="button button-primary" type="submit"><Check size={16} /> Save activity</button>
@@ -306,25 +462,7 @@ function Modal({
   onClose: () => void;
   children: React.ReactNode;
 }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <section className="modal-panel" role="dialog" aria-modal="true" aria-labelledby="dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modal-heading">
-          <h2 id="dialog-title">{title}</h2>
-          <button className="icon-button" type="button" aria-label="Close dialog" onClick={onClose}><X size={18} /></button>
-        </div>
-        {children}
-      </section>
-    </div>
-  );
+  return <ModalShell title={title} onClose={onClose}>{children}</ModalShell>;
 }
 
 function AppWorkspace() {
@@ -340,6 +478,9 @@ function AppWorkspace() {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [storageError, setStorageError] = useState(false);
   const [loadingTrips, setLoadingTrips] = useState(true);
+  const [settings, setSettings] = useState<UserSettings>(loadUserSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [expenseActivityId, setExpenseActivityId] = useState<string>();
   const activeTrip = trips.find((trip) => trip.id === activeTripId);
   const canLoadTrips = !auth.configured || Boolean(auth.user);
 
@@ -376,6 +517,15 @@ function AppWorkspace() {
     setStorageError(false);
   }
 
+  function updateSettings(nextSettings: UserSettings) {
+    try {
+      saveUserSettings(nextSettings);
+      setSettings(nextSettings);
+    } catch {
+      setStorageError(true);
+    }
+  }
+
   async function saveTrip(values: Omit<Trip, 'id' | 'activities' | 'expenses'>, id?: string) {
     const existing = id ? trips.find((trip) => trip.id === id) : undefined;
     const savedTrip: Trip = existing
@@ -402,17 +552,21 @@ function AppWorkspace() {
     const activity: Activity = existing ? { ...existing, ...values } : { ...values, id: createId() };
     try {
       await repository.saveActivity(trip.id, activity);
-      await refreshTrips();
-      setDialog(null);
     } catch {
       setStorageError(true);
+      throw new Error('Could not save this activity.');
     }
+    const retainedPhotoIds = new Set((activity.photos ?? []).map((photo) => photo.id));
+    await Promise.all((existing?.photos ?? []).filter((photo) => !retainedPhotoIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+    setDialog(null);
+    try { await refreshTrips(); } catch { setStorageError(true); }
   }
 
   async function deleteActivity(activity: Activity) {
     if (!activeTrip || !window.confirm(`Remove "${activity.title}" from the itinerary?`)) return;
     try {
       await repository.deleteActivity(activeTrip.id, activity.id);
+      await Promise.all((activity.photos ?? []).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
       await refreshTrips();
     } catch {
       setStorageError(true);
@@ -433,6 +587,20 @@ function AppWorkspace() {
     if (!activeTrip || !window.confirm(`Delete "${expense.title}" from expenses?`)) return;
     try {
       await repository.deleteExpense(activeTrip.id, expense.id);
+      await refreshTrips();
+    } catch {
+      setStorageError(true);
+    }
+  }
+
+  async function toggleDayComplete(date: string) {
+    if (!activeTrip) return;
+    const completedDates = new Set(activeTrip.completedDayDates ?? []);
+    if (completedDates.has(date)) completedDates.delete(date);
+    else completedDates.add(date);
+
+    try {
+      await repository.saveTrip({ ...activeTrip, completedDayDates: [...completedDates] });
       await refreshTrips();
     } catch {
       setStorageError(true);
@@ -475,6 +643,7 @@ function AppWorkspace() {
           </nav>
           <div className="topbar-actions">
             <div className="topbar-status"><span className="status-dot" /> {auth.user?.email ?? 'Local prototype'}</div>
+            <button className="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}><SettingsIcon size={16} /></button>
             {auth.user && <button className="icon-button" type="button" aria-label="Sign out" title="Sign out" onClick={() => { void auth.signOut(); }}><LogOut size={15} /></button>}
           </div>
         </header>
@@ -522,7 +691,7 @@ function AppWorkspace() {
             )}
           </div>
         ) : currentView === 'expenses' && activeTrip ? (
-          <ExpensesView trip={activeTrip} onSave={saveExpense} onDelete={deleteExpense} />
+          <ExpensesView trip={activeTrip} initialActivityId={expenseActivityId} onSave={saveExpense} onDelete={deleteExpense} />
         ) : activeTrip ? (
           <div className="content-wrap">
             <section className="trip-heading">
@@ -567,29 +736,37 @@ function AppWorkspace() {
               </div>
 
               {itineraryMode === 'map' ? (
-                <RouteMap trip={activeTrip} activities={sortedActivities} />
+                <RouteMap trip={activeTrip} activities={sortedActivities} timeFormat={settings.timeFormat} />
               ) : activityDays.length ? (
                 <div className="day-list">
                   {activityDays.map((date, dayIndex) => {
                     const dayActivities = sortedActivities.filter((activity) => activity.date === date);
                     return (
-                      <section className="day-group" key={date}>
+                      <section className={`day-group ${(activeTrip.completedDayDates ?? []).includes(date) ? 'completed' : ''}`} key={date}>
                         <div className="day-label">
                           <span className="day-number">{String(dayIndex + 1).padStart(2, '0')}</span>
                           <div><h3>{formatDate(date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><span>{dayActivities.length} {dayActivities.length === 1 ? 'stop' : 'stops'}</span></div>
+                          <button className="day-complete-toggle" type="button" aria-pressed={(activeTrip.completedDayDates ?? []).includes(date)} title={(activeTrip.completedDayDates ?? []).includes(date) ? 'Mark day not done' : 'Mark day done'} aria-label={`${(activeTrip.completedDayDates ?? []).includes(date) ? 'Mark' : 'Mark'} ${formatDate(date, { month: 'long', day: 'numeric' })} ${(activeTrip.completedDayDates ?? []).includes(date) ? 'not done' : 'done'}`} onClick={() => { void toggleDayComplete(date); }}>
+                            <CircleCheck size={17} />
+                          </button>
                         </div>
                         <div className="activity-list">
                           {dayActivities.map((activity) => (
                             <article className={`activity-row category-${activity.category.toLowerCase()}`} key={activity.id}>
-                              <div className="activity-time"><strong>{activity.startTime}</strong><span>{activity.endTime}</span></div>
+                              <div className="activity-time"><strong>{formatTime(activity.startTime, settings.timeFormat)}</strong><span>{formatTime(activity.endTime, settings.timeFormat)}</span></div>
                               <span className="activity-marker" aria-hidden="true">{categoryIcons[activity.category]}</span>
                               <div className="activity-main">
                                 <div className="activity-title-line"><h4>{activity.title}</h4><span className={`category-label ${activity.category.toLowerCase()}`}>{activity.category}</span></div>
+                                {activity.outfitOfDay && <span className="outfit-label">Outfit of the day</span>}
                                 {activity.location && <p className="activity-place"><MapPin size={12} /> {activity.location.label}</p>}
                                 {activity.notes && <p>{activity.notes}</p>}
+                                {activity.outfitNotes && <p>{activity.outfitNotes}</p>}
+                                {activity.photos?.length ? <ActivityPhotoGallery photos={activity.photos} newFiles={[]} readOnly /> : null}
+                                {activeTrip.expenses.some((expense) => expense.activityId === activity.id) && <p className="activity-expense-note">Spent {formatAmount(activeTrip.expenses.filter((expense) => expense.activityId === activity.id).reduce((sum, expense) => sum + expense.amountMinor, 0), activeTrip.currencyCode)}</p>}
                               </div>
                               <div className="activity-actions">
                                 <button className="icon-button" aria-label={`Edit ${activity.title}`} title="Edit activity" onClick={() => setDialog({ kind: 'activity', trip: activeTrip, activity })}><Pencil size={15} /></button>
+                                <button className="icon-button" aria-label={`Add expense for ${activity.title}`} title="Add expense for activity" onClick={() => { setExpenseActivityId(activity.id); setCurrentView('expenses'); }}><Receipt size={15} /></button>
                                 <button className="icon-button danger-hover" aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => deleteActivity(activity)}><Trash2 size={15} /></button>
                               </div>
                             </article>
@@ -620,8 +797,9 @@ function AppWorkspace() {
         )}
       </main>
 
-      {dialog?.kind === 'trip' && <TripDialog key={dialog.trip?.id ?? 'new-trip'} trip={dialog.trip} onClose={() => setDialog(null)} onSave={saveTrip} />}
+      {dialog?.kind === 'trip' && <TripDialog key={dialog.trip?.id ?? 'new-trip'} trip={dialog.trip} defaultCurrencyCode={settings.defaultCurrencyCode} onClose={() => setDialog(null)} onSave={saveTrip} />}
       {dialog?.kind === 'activity' && <ActivityDialog key={dialog.activity?.id ?? 'new-activity'} trip={dialog.trip} activity={dialog.activity} onClose={() => setDialog(null)} onSave={saveActivity} />}
+      {settingsOpen && <SettingsDialog settings={settings} onClose={() => setSettingsOpen(false)} onSave={updateSettings} />}
     </div>
   );
 }

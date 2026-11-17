@@ -3,6 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, Check, Pencil, Plus, Receipt, Trash2, User
 import { calculateNetBalances, splitEvenly, suggestSettlements, type Settlement } from './expenses';
 import { createId } from './storage';
 import { formatAmount, parseAmountToMinorUnits } from './money';
+import ModalShell from './ModalShell';
 import type { Expense, ExpenseSplit, Trip } from './types';
 
 const MAX_SPLIT_PEOPLE = 30;
@@ -13,10 +14,12 @@ interface ExpenseDraft {
   amountMinor: number;
   paidBy: string;
   splits: ExpenseSplit[];
+  activityId?: string;
 }
 
 interface ExpensesViewProps {
   trip: Trip;
+  initialActivityId?: string;
   onSave: (expense: Expense, id?: string) => void;
   onDelete: (expense: Expense) => void;
 }
@@ -39,11 +42,15 @@ function todayLocal(): string {
 
 function ExpenseDialog({
   currencyCode,
+  activities,
+  initialActivityId,
   expense,
   onClose,
   onSave,
 }: {
   currencyCode: string;
+  activities: Trip['activities'];
+  initialActivityId?: string;
   expense?: Expense;
   onClose: () => void;
   onSave: (draft: ExpenseDraft, id?: string) => void;
@@ -56,9 +63,12 @@ function ExpenseDialog({
   const [rows, setRows] = useState<SplitRow[]>(() => expense
     ? expense.splits.map((split) => ({ id: createId(), person: split.person, amount: amountForInput(split.amountMinor, currencyCode) }))
     : [{ id: createId(), person: '', amount: '' }, { id: createId(), person: '', amount: '' }]);
+  const [paidBy, setPaidBy] = useState(expense?.paidBy ?? '');
+  const [activityId, setActivityId] = useState(expense?.activityId ?? initialActivityId ?? '');
   const [error, setError] = useState('');
   const amountMinor = parseAmountToMinorUnits(amount, currencyCode);
   const participants = rows.map((row) => row.person.trim()).filter(Boolean);
+  const selectedPayer = participants.includes(paidBy) ? paidBy : participants[0] ?? '';
   const equalPreview = amountMinor !== undefined && participants.length > 0
     ? splitEvenly(amountMinor, participants)
     : [];
@@ -72,11 +82,11 @@ function ExpenseDialog({
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get('title')).trim();
     const date = String(formData.get('date'));
-    const paidBy = String(formData.get('paidBy')).trim();
+    const linkedActivityId = String(formData.get('activityId') ?? '').trim();
     const total = parseAmountToMinorUnits(amount, currencyCode);
     const names = rows.map((row) => row.person.trim()).filter(Boolean);
 
-    if (!total || !names.length || !paidBy) {
+    if (!total || !names.length || !selectedPayer) {
       setError('Enter an amount, a payer, and at least one person to split with.');
       return;
     }
@@ -104,16 +114,11 @@ function ExpenseDialog({
       }
     }
 
-    onSave({ title, date, amountMinor: total, paidBy, splits }, expense?.id);
+    onSave({ title, date, amountMinor: total, paidBy: selectedPayer, splits, ...(linkedActivityId ? { activityId: linkedActivityId } : {}) }, expense?.id);
   }
 
   return (
-    <div className="modal-backdrop" onMouseDown={onClose}>
-      <section className="modal-panel expense-dialog" role="dialog" aria-modal="true" aria-labelledby="expense-dialog-title" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="modal-heading">
-          <h2 id="expense-dialog-title">{expense ? 'Edit expense' : 'Add expense'}</h2>
-          <button className="icon-button" type="button" aria-label="Close dialog" onClick={onClose}><X size={18} /></button>
-        </div>
+    <ModalShell title={expense ? 'Edit expense' : 'Add expense'} onClose={onClose}>
         <form className="dialog-form" onSubmit={handleSubmit}>
           <label>
             Expense name
@@ -130,8 +135,11 @@ function ExpenseDialog({
             </label>
           </div>
           <label>
-            Paid by
-            <input name="paidBy" defaultValue={expense?.paidBy} required maxLength={60} placeholder="Person's name" />
+            Itinerary activity <span className="optional-label">Optional</span>
+            <select name="activityId" value={activityId} onChange={(event) => setActivityId(event.target.value)}>
+              <option value="">General trip expense</option>
+              {activities.map((activity) => <option key={activity.id} value={activity.id}>{activity.title}</option>)}
+            </select>
           </label>
           <div className="split-editor-heading">
             <strong>Split this expense</strong>
@@ -160,14 +168,20 @@ function ExpenseDialog({
             ))}
           </div>
           <button className="add-split-person" type="button" disabled={rows.length >= MAX_SPLIT_PEOPLE} onClick={() => setRows((current) => [...current, { id: createId(), person: '', amount: '' }])}><Plus size={14} /> Add person</button>
+          <label>
+            Paid by
+            <select name="paidBy" value={selectedPayer} onChange={(event) => setPaidBy(event.target.value)} required disabled={!participants.length}>
+              {!participants.length && <option value="">Add split participants first</option>}
+              {participants.map((person) => <option key={person} value={person}>{person}</option>)}
+            </select>
+          </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">
             <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
             <button className="button button-primary" type="submit"><Check size={16} /> Save expense</button>
           </div>
         </form>
-      </section>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -175,8 +189,9 @@ function settlementText(settlement: Settlement, currencyCode: string): string {
   return `${settlement.from} pays ${settlement.to} ${formatAmount(settlement.amountMinor, currencyCode)}`;
 }
 
-export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewProps) {
+export default function ExpensesView({ trip, initialActivityId, onSave, onDelete }: ExpensesViewProps) {
   const [dialogExpense, setDialogExpense] = useState<Expense | null | undefined>(undefined);
+  const [newExpenseActivityId, setNewExpenseActivityId] = useState(initialActivityId);
   const expenses = trip.expenses ?? [];
   const totalSpent = expenses.reduce((sum, expense) => sum + expense.amountMinor, 0);
   const remaining = trip.budgetMinor > 0 ? trip.budgetMinor - totalSpent : undefined;
@@ -184,9 +199,15 @@ export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewPro
   const settlements = suggestSettlements(expenses);
   const budgetPercent = trip.budgetMinor > 0 ? Math.min(100, (totalSpent / trip.budgetMinor) * 100) : 0;
 
+  function openNewExpense(activityId = newExpenseActivityId) {
+    setNewExpenseActivityId(activityId);
+    setDialogExpense(null);
+  }
+
   function saveExpense(draft: ExpenseDraft, id?: string) {
     onSave({ ...draft, id: id ?? createId() }, id);
     setDialogExpense(undefined);
+    setNewExpenseActivityId(undefined);
   }
 
   return (
@@ -197,7 +218,7 @@ export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewPro
           <h1>Expenses</h1>
           <p>Track shared spending for {trip.name}.</p>
         </div>
-        <button className="button button-primary" onClick={() => setDialogExpense(null)}><Plus size={17} /> Add expense</button>
+        <button className="button button-primary" onClick={() => openNewExpense()}><Plus size={17} /> Add expense</button>
       </section>
 
       <section className="finance-summary" aria-label="Budget summary">
@@ -226,7 +247,7 @@ export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewPro
               {expenses.slice().sort((left, right) => right.date.localeCompare(left.date)).map((expense) => (
                 <article className="expense-row" key={expense.id}>
                   <span className="expense-icon"><Receipt size={17} /></span>
-                  <div className="expense-copy"><strong>{expense.title}</strong><span>{expense.date} · Paid by {expense.paidBy}</span><small>Split between {expense.splits.map((split) => split.person).join(', ')}</small></div>
+                  <div className="expense-copy"><strong>{expense.title}</strong><span>{expense.date} · Paid by {expense.paidBy}</span>{expense.activityId && <small>Itinerary: {trip.activities.find((activity) => activity.id === expense.activityId)?.title ?? 'Activity'}</small>}<small>Split between {expense.splits.map((split) => split.person).join(', ')}</small></div>
                   <strong className="expense-amount">{formatAmount(expense.amountMinor, trip.currencyCode)}</strong>
                   <div className="expense-actions">
                     <button className="icon-button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => setDialogExpense(expense)}><Pencil size={15} /></button>
@@ -236,7 +257,7 @@ export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewPro
               ))}
             </div>
           ) : (
-            <div className="expense-empty"><span><Receipt size={20} /></span><strong>No expenses recorded</strong><p>Add a shared cost to see spending and balances here.</p><button className="button button-outline" onClick={() => setDialogExpense(null)}><Plus size={15} /> Add first expense</button></div>
+            <div className="expense-empty"><span><Receipt size={20} /></span><strong>No expenses recorded</strong><p>Add a shared cost to see spending and balances here.</p><button className="button button-outline" onClick={() => openNewExpense()}><Plus size={15} /> Add first expense</button></div>
           )}
         </section>
 
@@ -265,7 +286,7 @@ export default function ExpensesView({ trip, onSave, onDelete }: ExpensesViewPro
         </aside>
       </div>
 
-      {dialogExpense !== undefined && <ExpenseDialog key={dialogExpense?.id ?? 'new-expense'} currencyCode={trip.currencyCode} expense={dialogExpense ?? undefined} onClose={() => setDialogExpense(undefined)} onSave={saveExpense} />}
+      {dialogExpense !== undefined && <ExpenseDialog key={dialogExpense?.id ?? 'new-expense'} currencyCode={trip.currencyCode} activities={trip.activities} initialActivityId={newExpenseActivityId} expense={dialogExpense ?? undefined} onClose={() => { setDialogExpense(undefined); setNewExpenseActivityId(undefined); }} onSave={saveExpense} />}
     </div>
   );
 }

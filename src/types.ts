@@ -16,6 +16,9 @@ export interface Activity {
   category: ActivityCategory;
   notes: string;
   location?: PlaceLocation;
+  outfitOfDay?: boolean;
+  outfitNotes?: string;
+  photos?: Array<{ id: string; name: string; mimeType: string; size: number }>;
 }
 
 export interface ExpenseSplit {
@@ -30,6 +33,7 @@ export interface Expense {
   amountMinor: number;
   paidBy: string;
   splits: ExpenseSplit[];
+  activityId?: string;
 }
 
 export interface Trip {
@@ -43,4 +47,5 @@ export interface Trip {
   budgetMinor: number;
   activities: Activity[];
   expenses: Expense[];
+  completedDayDates?: string[];
 }

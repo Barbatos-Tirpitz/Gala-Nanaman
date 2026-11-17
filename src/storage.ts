@@ -1,7 +1,7 @@
 import type { Trip } from './types';
 
 const STORAGE_KEY = 'gala-nanaman:prototype-trips:v1';
-const supportedCurrencies = new Set(['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'AUD']);
+const supportedCurrencies = new Set(['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'AUD', 'PHP']);
 
 const starterTrips: Trip[] = [
   {
