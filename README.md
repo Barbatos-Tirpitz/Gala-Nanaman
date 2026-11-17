@@ -8,10 +8,10 @@ Gala-Nanaman is a travel planner for solo and group trips. It brings trip
 details, destinations, itineraries, maps, accommodations, and expenses
 together in a single mobile-friendly experience.
 
-The repository currently contains an initial React and TypeScript
-frontend prototype for trip and itinerary planning. Product scope and
-architecture are still being validated; the prototype is not a deployed
-or production-ready application.
+The repository contains a working React and TypeScript prototype for trip,
+itinerary, map, expense, and currency-conversion workflows. Product scope
+and production readiness are still being validated; this is not a
+production-ready application.
 
 ## Table of Contents
 
@@ -63,6 +63,7 @@ The application is intended to support both **solo planning** and
 ### Trip Management
 
 -   Create, update, and organize trips.
+-   Archive and restore trips without deleting their data.
 -   Set trip names, dates, descriptions, and primary destinations.
 -   Manage trip participants and their access roles.
 -   View upcoming, active, and completed trips.
@@ -282,8 +283,8 @@ entities:
   `Users`                             User identity and profile
                                       information
 
-  `Trips`                             Main trip records and owner
-                                      reference
+    `Trips`                             Main trip records, owner reference,
+                                                                            and archive state
 
   `Trip_Members`                      Trip membership and participant
                                       roles
@@ -366,7 +367,7 @@ Run the type check and production build with:
 npm run build
 ```
 
-Run the usage-limit unit tests with `npm test`.
+Run the unit tests with `npm test`.
 
 To connect Firebase on the no-cost Spark plan:
 
@@ -437,8 +438,9 @@ the `android` directory to find the debug SHA-1 before configuring Firebase.
 
 ## MVP Roadmap
 
-The sequence below is proposed. Complete Phase 0 before beginning feature
-implementation.
+The sequence below was proposed at MVP inception. Prototype feature work is
+underway; complete Phase 0 before using real trip data or treating the app as
+production-ready.
 
 The proposed first release lets an authenticated trip owner manage trips,
 chronological itineraries, day completion, manually attached local photos
@@ -465,7 +467,7 @@ These remain future product capabilities.
     retention policy is approved.
 
 As the sole developer, record the outcome and pass/fail evidence for each
-gate before starting the dependent feature work.
+gate before using real trip data or shipping the dependent functionality.
 
 ### Phase 1 --- Foundation
 
@@ -479,7 +481,8 @@ gate before starting the dependent feature work.
 
 ### Phase 2 --- Core trip and itinerary
 
--   [ ] Create, view, update, and archive a trip.
+-   [x] Create, view, and update trips.
+-   [x] Archive and restore trips without deleting their activities or expenses.
 -   [x] Add, view, update, and remove itinerary activities.
 -   [x] Display activities chronologically with configurable 12/24-hour time.
 -   [x] Default new activity times one hour after the preceding stop.
@@ -510,6 +513,7 @@ gate before starting the dependent feature work.
 -   [x] Show place imagery in a source-linked photo carousel.
 -   [x] Record trip budgets and expenses in the trip currency.
 -   [x] Support equal and custom expense splits with settlement summaries.
+-   [x] Convert trip currency with a dated reference-rate confirmation.
 -   [x] Limit place, route, and photo lookups per account per day.
 -   [ ] Select production maps, routing, and photo providers.
 -   [ ] Add travel modes and route details beyond the driving preview.
@@ -582,16 +586,17 @@ application rules independent of Firestore-specific document layouts.
 
 **Current stage: Firebase-backed implementation in progress.**
 
-The app includes Google sign-in, a Firestore repository adapter, Firestore
-Rules that enforce owner-only access and validate trip, activity, and
-expense data, and per-account daily limits for map lookups. It targets the
-no-cost Spark plan. Time/currency preferences are browser-local, and
-activity photo blobs are stored in IndexedDB on the device where they were
-added; neither is synced. The Firebase project is not configured in the
-repository yet, and the emulator rule suite has not been run on this
-machine because Java is unavailable. The browser-local adapter is for
-development only. Configure Firebase and pass the rules tests before using
-real trip data. Collaboration and offline caching are not implemented.
+The prototype includes Google sign-in, a Firestore repository adapter,
+owner-only Firestore Rules, itinerary and expense management, activity and
+outfit photos, and daily fair-use limits for map lookups. Trip archiving is
+reversible and preserves nested records. Currency conversion uses a dated
+reference rate. It targets the no-cost Spark plan. Preferences and activity
+photo blobs remain on the device and are not synced. Firebase project values
+are not configured in the repository; local rules-emulator tests require
+Java, while CI is configured to run them with Java 17. The browser-local
+adapter is for development only. Complete Phase 0 and verify the rules suite
+before using real trip data. Collaboration and offline trip caching remain
+unimplemented.
 
 ------------------------------------------------------------------------
 
