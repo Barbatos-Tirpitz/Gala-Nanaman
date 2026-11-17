@@ -4,11 +4,13 @@ import L from 'leaflet';
 import { MapContainer, Marker, Polyline, TileLayer, useMap } from 'react-leaflet';
 import { DailyLimitError, findPlacePhotos, getDrivingRoute, searchPlaces, type PlacePhoto } from './services/geo';
 import type { Activity, PlaceLocation, Trip } from './types';
+import { formatTime, type TimeFormat } from './settings';
 import 'leaflet/dist/leaflet.css';
 
 interface MapViewProps {
   trip: Trip;
   activities: Activity[];
+  timeFormat: TimeFormat;
 }
 
 interface MapPoint {
@@ -44,7 +46,7 @@ async function lookupPlace(query: string, signal: AbortSignal): Promise<PlaceLoc
   return place ? { ...place, label: place.label || query } : undefined;
 }
 
-export default function RouteMap({ trip, activities }: MapViewProps) {
+export default function RouteMap({ trip, activities, timeFormat }: MapViewProps) {
   const locatedActivities = activities.filter((activity) => activity.location
     && Number.isFinite(activity.location.latitude)
     && Number.isFinite(activity.location.longitude)
@@ -187,7 +189,7 @@ export default function RouteMap({ trip, activities }: MapViewProps) {
       <aside className="place-preview-panel" aria-label="Place details and photos">
         <div className="place-panel-heading">
           <div><span className="map-section-kicker"><Sparkles size={14} /> PLACE PREVIEW</span><h3>{selectedActivity?.title ?? trip.destination}</h3></div>
-          {selectedActivity && <span className="place-time"><Clock3 size={13} /> {selectedActivity.startTime}</span>}
+          {selectedActivity && <span className="place-time"><Clock3 size={13} /> {formatTime(selectedActivity.startTime, timeFormat)}</span>}
         </div>
         <p className="place-address"><MapPin size={14} /> {selectedActivity?.location?.label ?? destinationLocation?.label ?? trip.destination}</p>
 
@@ -220,7 +222,7 @@ export default function RouteMap({ trip, activities }: MapViewProps) {
               <button className={`mapped-stop ${activity.id === selectedStopId ? 'selected' : ''}`} key={activity.id} onClick={() => setSelectedStopId(activity.id)} aria-pressed={activity.id === selectedStopId}>
                 <span className="mapped-stop-number">{index + 1}</span>
                 <span className="mapped-stop-copy"><strong>{activity.title}</strong><small>{activity.location?.label}</small></span>
-                <span className="mapped-stop-time">{activity.startTime}</span>
+                <span className="mapped-stop-time">{formatTime(activity.startTime, timeFormat)}</span>
               </button>
             ))}
           </div>

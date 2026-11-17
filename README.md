@@ -333,6 +333,8 @@ entities:
 | Authentication | Firebase Authentication | Google sign-in and verified user identity |
 | Data store | Cloud Firestore | Owner-scoped trip, activity, and expense records |
 | Development fallback | Browser local storage | Local prototype only; not used in production builds |
+| User preferences | Browser local storage | Time display and default currency for new trips |
+| Activity photos | IndexedDB | Manual image attachments stored on this device only |
 | Maps | OpenStreetMap, Photon, OSRM demo | Prototype place search, tiles, and driving estimate |
 | Photos | Wikimedia Commons | Prototype place imagery with source links |
 | Usage limits | Browser-enforced daily limits per account | Fair-use caps for place, route, and photo lookups |
@@ -392,7 +394,8 @@ The sequence below is proposed. Complete Phase 0 before beginning feature
 implementation.
 
 The proposed first release lets an authenticated trip owner manage trips,
-chronological itineraries, place previews, driving-route estimates, and
+chronological itineraries, day completion, manually attached local photos
+and outfit-of-the-day notes, place previews, driving-route estimates, and
 shared expenses with equal or custom splits. It excludes group membership
 and suggestion approvals, reservations, and offline trip-data caching.
 These remain future product capabilities.
@@ -430,8 +433,13 @@ gate before starting the dependent feature work.
 ### Phase 2 --- Core trip and itinerary
 
 -   [ ] Create, view, update, and archive a trip.
--   [ ] Add, view, update, and remove itinerary activities.
--   [ ] Display activities chronologically in the trip's timezone.
+-   [x] Add, view, update, and remove itinerary activities.
+-   [x] Display activities chronologically with configurable 12/24-hour time.
+-   [x] Default new activity times one hour after the preceding stop.
+-   [x] Mark itinerary days complete.
+-   [x] Attach local photos and outfit-of-the-day notes to activities.
+-   [x] Add expenses from itinerary activities and show linked spend inline.
+-   [x] Configure the default currency for new trips, including PHP.
 
 ### Phase 3 --- Collaboration
 
@@ -530,7 +538,9 @@ application rules independent of Firestore-specific document layouts.
 The app includes Google sign-in, a Firestore repository adapter, Firestore
 Rules that enforce owner-only access and validate trip, activity, and
 expense data, and per-account daily limits for map lookups. It targets the
-no-cost Spark plan. The Firebase project is not configured in the
+no-cost Spark plan. Time/currency preferences are browser-local, and
+activity photo blobs are stored in IndexedDB on the device where they were
+added; neither is synced. The Firebase project is not configured in the
 repository yet, and the emulator rule suite has not been run on this
 machine because Java is unavailable. The browser-local adapter is for
 development only. Configure Firebase and pass the rules tests before using

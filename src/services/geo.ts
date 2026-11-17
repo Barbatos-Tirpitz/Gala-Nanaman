@@ -119,6 +119,21 @@ export function searchPlaces(query: string, limit: number, signal?: AbortSignal)
   }, signal);
 }
 
+export function reversePlace(latitude: number, longitude: number, signal?: AbortSignal): Promise<PlaceLocation> {
+  if (!isCoordinate(latitude, 90) || !isCoordinate(longitude, 180)) {
+    return Promise.reject(new Error('The selected map point is outside valid coordinates.'));
+  }
+
+  const lat = Number(latitude.toFixed(5));
+  const lon = Number(longitude.toFixed(5));
+  return limitedRequest('placeSearch', `reverse:${lat},${lon}`, async () => {
+    const data = await getJson<PhotonResponse>(`https://photon.komoot.io/reverse?lon=${lon}&lat=${lat}&limit=1`);
+    const feature = data.features?.[0];
+    const label = placeLabel(feature?.properties) || `Pinned location (${lat}, ${lon})`;
+    return { label, latitude, longitude, searchTerm: label };
+  }, signal);
+}
+
 export function getDrivingRoute(points: RoutePoint[], signal?: AbortSignal): Promise<DrivingRoute> {
   const path = points.map(({ latitude, longitude }) => `${longitude},${latitude}`).join(';');
   return limitedRequest('route', `route:${path}`, async () => {
