@@ -296,7 +296,7 @@ function ActivityDialog({
   trip: Trip;
   activity?: Activity;
   onClose: () => void;
-  onSave: (values: Omit<Activity, 'id'>, id?: string) => Promise<void>;
+  onSave: (values: Omit<Activity, 'id'>, id?: string, photosDiscarded?: boolean) => Promise<void>;
 }) {
   const [placeQuery, setPlaceQuery] = useState(activity?.location?.label ?? '');
   const [selectedLocation, setSelectedLocation] = useState<PlaceLocation | undefined>(activity?.location);
@@ -309,13 +309,14 @@ function ActivityDialog({
   const [mapPickerState, setMapPickerState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle');
   const [activityPhotos, setActivityPhotos] = useState<LocalPhotoRef[]>(activity?.photos ?? []);
   const [outfitPhoto, setOutfitPhoto] = useState<LocalPhotoRef | undefined>(activity?.outfitPhoto ?? undefined);
-  const [pendingPhotoRefs, setPendingPhotoRefs] = useState<LocalPhotoRef[]>([]);
+  const [pendingPhotoFiles, setPendingPhotoFiles] = useState<File[]>([]);
+  const [pendingOutfitPhotoFile, setPendingOutfitPhotoFile] = useState<File>();
   const [outfitOfDay, setOutfitOfDay] = useState(activity?.outfitOfDay ?? false);
   const [outfitNotes, setOutfitNotes] = useState(activity?.outfitNotes ?? '');
   const [photoError, setPhotoError] = useState('');
   const [saveError, setSaveError] = useState('');
-  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingPhotos, setIsSavingPhotos] = useState(false);
 
   useEffect(() => {
     const query = placeQuery.trim();
@@ -385,10 +386,10 @@ function ActivityDialog({
       });
   }
 
-  async function addPhotos(fileList: FileList | null) {
+  function addPhotos(fileList: FileList | null) {
     const incoming = Array.from(fileList ?? []);
     if (!incoming.length) return;
-    if (activityPhotos.length + incoming.length > 5) {
+    if (activityPhotos.length + pendingPhotoFiles.length + incoming.length > 5) {
       setPhotoError('You can attach up to five photos to an activity.');
       return;
     }
@@ -397,22 +398,11 @@ function ActivityDialog({
       return;
     }
 
-    setIsUploadingPhotos(true);
     setPhotoError('');
-    const saved: LocalPhotoRef[] = [];
-    try {
-      for (const file of incoming) saved.push(await saveLocalPhoto(file));
-      setActivityPhotos((current) => [...current, ...saved]);
-      setPendingPhotoRefs((current) => [...current, ...saved]);
-    } catch (error) {
-      await Promise.all(saved.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
-      setPhotoError(error instanceof Error ? error.message : 'Could not save the selected photo locally.');
-    } finally {
-      setIsUploadingPhotos(false);
-    }
+    setPendingPhotoFiles((current) => [...current, ...incoming]);
   }
 
-  async function addOutfitPhoto(fileList: FileList | null) {
+  function addOutfitPhoto(fileList: FileList | null) {
     const file = fileList?.[0];
     if (!file) return;
     if (fileList && fileList.length > 1) {
@@ -424,48 +414,63 @@ function ActivityDialog({
       return;
     }
 
-    setIsUploadingPhotos(true);
     setPhotoError('');
-    try {
-      const saved = await saveLocalPhoto(file);
-      const previous = outfitPhoto;
-      setOutfitPhoto(saved);
-      setPendingPhotoRefs((current) => [...current.filter((photo) => photo.id !== previous?.id), saved]);
-      if (previous && pendingPhotoRefs.some((photo) => photo.id === previous.id)) {
-        await deleteLocalPhoto(previous.id).catch(() => undefined);
-      }
-    } catch (error) {
-      setPhotoError(error instanceof Error ? error.message : 'Could not save the outfit photo locally.');
-    } finally {
-      setIsUploadingPhotos(false);
-    }
+    setPendingOutfitPhotoFile(file);
   }
 
   function removePhoto(photoId: string) {
     setActivityPhotos((current) => current.filter((photo) => photo.id !== photoId));
-    if (!pendingPhotoRefs.some((photo) => photo.id === photoId)) return;
-    setPendingPhotoRefs((current) => current.filter((photo) => photo.id !== photoId));
-    void deleteLocalPhoto(photoId).catch(() => setPhotoError('Could not remove the photo from this device.'));
+  }
+
+  function removePendingPhoto(fileIndex: number) {
+    setPendingPhotoFiles((current) => current.filter((_, index) => index !== fileIndex));
   }
 
   function removeOutfitPhoto() {
-    if (!outfitPhoto) return;
-    const photoId = outfitPhoto.id;
+    setPendingOutfitPhotoFile(undefined);
     setOutfitPhoto(undefined);
-    if (!pendingPhotoRefs.some((photo) => photo.id === photoId)) return;
-    setPendingPhotoRefs((current) => current.filter((photo) => photo.id !== photoId));
-    void deleteLocalPhoto(photoId).catch(() => setPhotoError('Could not remove the outfit photo from this device.'));
   }
 
   function closeActivityDialog() {
-    if (isUploadingPhotos || isSaving) return;
-    void Promise.all(pendingPhotoRefs.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+    if (isSaving || isSavingPhotos) return;
     onClose();
+  }
+
+  async function saveSelectedPhotos(): Promise<{ photos: LocalPhotoRef[]; outfitPhoto?: LocalPhotoRef; created: LocalPhotoRef[]; failed: boolean }> {
+    const savedPhotos: LocalPhotoRef[] = [];
+    const created: LocalPhotoRef[] = [];
+    let failed = Boolean(photoError);
+
+    for (const file of pendingPhotoFiles) {
+      try {
+        const saved = await saveLocalPhoto(file);
+        savedPhotos.push(saved);
+        created.push(saved);
+      } catch {
+        failed = true;
+      }
+    }
+
+    let savedOutfitPhoto = outfitPhoto;
+    if (pendingOutfitPhotoFile) {
+      try {
+        savedOutfitPhoto = await saveLocalPhoto(pendingOutfitPhotoFile);
+        created.push(savedOutfitPhoto);
+      } catch {
+        failed = true;
+      }
+    }
+
+    return { photos: [...activityPhotos, ...savedPhotos], outfitPhoto: savedOutfitPhoto, created, failed };
+  }
+
+  async function saveActivityForm(values: Omit<Activity, 'id'>, id: string | undefined, photosDiscarded: boolean) {
+    await onSave(values, id, photosDiscarded);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isUploadingPhotos || isSaving) return;
+    if (isSaving || isSavingPhotos) return;
     const formData = new FormData(event.currentTarget);
     const startTime = String(formData.get('startTime'));
     const endTime = String(formData.get('endTime'));
@@ -477,8 +482,18 @@ function ActivityDialog({
 
     setIsSaving(true);
     setSaveError('');
+    setIsSavingPhotos(true);
+    let savedPhotoData: Awaited<ReturnType<typeof saveSelectedPhotos>>;
     try {
-      await onSave(
+      savedPhotoData = await saveSelectedPhotos();
+    } catch {
+      savedPhotoData = { photos: activityPhotos, outfitPhoto, created: [], failed: true };
+    } finally {
+      setIsSavingPhotos(false);
+    }
+
+    try {
+      await saveActivityForm(
         {
           title: String(formData.get('title')).trim(),
           date: String(formData.get('date')),
@@ -488,14 +503,15 @@ function ActivityDialog({
           notes: String(formData.get('notes')).trim(),
           outfitOfDay,
           outfitNotes: outfitNotes.trim(),
-          outfitPhoto: outfitPhoto ?? null,
-          photos: activityPhotos,
+          outfitPhoto: savedPhotoData.outfitPhoto ?? null,
+          photos: savedPhotoData.photos,
           ...(selectedLocation ? { location: selectedLocation } : {}),
         },
         activity?.id,
+        savedPhotoData.failed,
       );
-      setPendingPhotoRefs([]);
     } catch (error) {
+      await Promise.all(savedPhotoData.created.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
       setSaveError(error instanceof Error ? error.message : 'The activity could not be saved. Your local photos are still available to retry.');
     } finally {
       setIsSaving(false);
@@ -590,9 +606,9 @@ function ActivityDialog({
             </label>
             <label>
               Outfit photo <span className="optional-label">Optional · saved on this device only</span>
-              <input type="file" accept="image/*" disabled={isUploadingPhotos} onChange={(event) => { void addOutfitPhoto(event.target.files); event.target.value = ''; }} />
+              <input type="file" accept="image/*" disabled={isSaving} onChange={(event) => { addOutfitPhoto(event.target.files); event.target.value = ''; }} />
             </label>
-            <ActivityPhotoGallery photos={outfitPhoto ? [outfitPhoto] : []} newFiles={[]} label="Outfit photo" onRemoveStored={removeOutfitPhoto} />
+            <ActivityPhotoGallery photos={pendingOutfitPhotoFile ? [] : outfitPhoto ? [outfitPhoto] : []} newFiles={pendingOutfitPhotoFile ? [pendingOutfitPhotoFile] : []} label="Outfit photo" onRemoveStored={removeOutfitPhoto} onRemoveFile={removeOutfitPhoto} />
           </>
         )}
         <label>
@@ -601,20 +617,20 @@ function ActivityDialog({
             type="file"
             accept="image/*"
             multiple
-            disabled={isUploadingPhotos}
+            disabled={isSaving}
             onChange={(event) => {
-              void addPhotos(event.target.files);
+              addPhotos(event.target.files);
               event.target.value = '';
             }}
           />
         </label>
-        {isUploadingPhotos && <p className="field-hint" role="status">Saving photo to this device…</p>}
-        <ActivityPhotoGallery photos={activityPhotos} newFiles={[]} onRemoveStored={removePhoto} onRemoveFile={() => undefined} />
+        {isSavingPhotos && <p className="field-hint" role="status">Saving selected photos…</p>}
+        <ActivityPhotoGallery photos={activityPhotos} newFiles={pendingPhotoFiles} onRemoveStored={removePhoto} onRemoveFile={removePendingPhoto} />
         {photoError && <p className="form-error" role="alert">{photoError}</p>}
         {saveError && <p className="form-error" role="alert">{saveError}</p>}
         <div className="dialog-actions">
-          <button className="button button-quiet" type="button" disabled={isSaving || isUploadingPhotos} onClick={closeActivityDialog}>Cancel</button>
-          <button className="button button-primary" type="submit" disabled={isSaving || isUploadingPhotos}><Check size={16} /> {isSaving ? 'Saving…' : 'Save activity'}</button>
+          <button className="button button-quiet" type="button" disabled={isSaving || isSavingPhotos} onClick={closeActivityDialog}>Cancel</button>
+          <button className="button button-primary" type="submit" disabled={isSaving || isSavingPhotos}><Check size={16} /> {isSavingPhotos ? 'Saving photos…' : isSaving ? 'Saving activity…' : 'Save activity'}</button>
         </div>
       </form>
     </Modal>
@@ -645,6 +661,7 @@ function AppWorkspace() {
   const [itineraryMode, setItineraryMode] = useState<'list' | 'map'>('list');
   const [dialog, setDialog] = useState<DialogState>(null);
   const [storageError, setStorageError] = useState(false);
+  const [activityPhotoNotice, setActivityPhotoNotice] = useState('');
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(loadUserSettings);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -723,7 +740,7 @@ function AppWorkspace() {
     setDialog(null);
   }
 
-  async function saveActivity(values: Omit<Activity, 'id'>, id?: string) {
+  async function saveActivity(values: Omit<Activity, 'id'>, id?: string, photosDiscarded = false) {
     if (dialog?.kind !== 'activity') return;
     const { trip } = dialog;
     const existing = trip.activities.find((activity) => activity.id === id);
@@ -734,6 +751,7 @@ function AppWorkspace() {
       setStorageError(true);
       throw new Error('Could not save this activity.');
     }
+    setActivityPhotoNotice(photosDiscarded ? 'Activity saved. Some photos could not be stored on this device and were discarded.' : '');
     const retainedPhotoIds = new Set([...(activity.photos ?? []).map((photo) => photo.id), activity.outfitPhoto?.id]);
     const previousPhotos = [...(existing?.photos ?? []), ...(existing?.outfitPhoto ? [existing.outfitPhoto] : [])];
     await Promise.all(previousPhotos.filter((photo) => !retainedPhotoIds.has(photo.id)).map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
@@ -828,6 +846,7 @@ function AppWorkspace() {
         </header>
 
         {storageError && <div className="storage-alert" role="status">Trip data could not be loaded or saved. Check your connection and account access.</div>}
+        {activityPhotoNotice && <div className="photo-save-notice" role="status">{activityPhotoNotice}</div>}
 
         {currentView === 'trips' ? (
           <div className="content-wrap trips-wrap">

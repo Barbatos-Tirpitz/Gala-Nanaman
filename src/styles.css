@@ -181,6 +181,7 @@ h1, h2, h3, h4, p { margin-top: 0; }
 .empty-state p, .empty-workspace p { margin: 0 0 17px; color: #7d8880; font-size: 12px; }
 .content-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 31px; border-top: 1px solid var(--line); padding-top: 12px; color: #8b958e; font-size: 10px; }
 .storage-alert { margin: 15px auto 0; width: min(900px, calc(100% - 32px)); padding: 10px 13px; border-radius: 6px; color: #7a482f; background: #f9eee6; font-size: 12px; }
+.photo-save-notice { margin: 15px auto 0; width: min(900px, calc(100% - 32px)); padding: 10px 13px; border: 1px solid #d5e5d7; border-radius: 6px; color: #315d3d; background: #edf6ed; font-size: 12px; }
 .empty-workspace { min-height: calc(100vh - 68px); display: grid; justify-items: center; align-content: center; text-align: center; padding: 30px; }
 .empty-workspace h1 { margin: 17px 0 9px; font-size: 36px; }
 .empty-workspace p { max-width: 340px; line-height: 1.6; }
