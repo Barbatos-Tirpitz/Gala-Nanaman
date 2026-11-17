@@ -4,6 +4,7 @@ import type { Activity, Expense, Trip } from '../types';
 export interface TripRepository {
   listTrips(): Promise<Trip[]>;
   saveTrip(trip: Trip): Promise<void>;
+  saveCurrencyConversion(trip: Trip): Promise<void>;
   saveActivity(tripId: string, activity: Activity): Promise<void>;
   deleteActivity(tripId: string, activityId: string): Promise<void>;
   saveExpense(tripId: string, expense: Expense): Promise<void>;
@@ -24,6 +25,10 @@ class BrowserTripRepository implements TripRepository {
     }
 
     saveTrips(trips.map((item) => item.id === trip.id ? trip : item));
+  }
+
+  async saveCurrencyConversion(trip: Trip): Promise<void> {
+    await this.saveTrip(trip);
   }
 
   async saveActivity(tripId: string, activity: Activity): Promise<void> {

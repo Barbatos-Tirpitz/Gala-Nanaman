@@ -108,7 +108,7 @@ test('owners can manage valid activities and expenses', async () => {
   const { location: _location, ...activityWithoutPlace } = activity();
   await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'activity-a'), activity()));
   await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'no-place'), activityWithoutPlace));
-  await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'outfit'), activity({ outfitOfDay: true, outfitNotes: 'Rain layer', photos: [{ id: 'photo-a', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 1024 }] })));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'outfit'), activity({ outfitOfDay: true, outfitNotes: 'Rain layer', outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 1024 }, photos: [{ id: 'photo-a', name: 'street.jpg', mimeType: 'image/jpeg', size: 1024 }] })));
   await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'expense-a'), expense({ activityId: 'activity-a' })));
   await assertSucceeds(updateDoc(doc(db, 'trips', 'trip-a'), { completedDayDates: ['2027-05-13'], updatedAt: serverTimestamp() }));
   await assertSucceeds(deleteDoc(doc(db, 'trips', 'trip-a', 'activities', 'activity-a')));
@@ -121,6 +121,8 @@ test('activity and expense writes are validated', async () => {
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-place'), activity({ location: { label: 'Nowhere', latitude: 120, longitude: 0 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'extra-field'), activity({ ownerId: 'user-b' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'too-many-photos'), activity({ photos: Array.from({ length: 6 }, (_, index) => ({ id: `photo-${index}`, name: 'photo.jpg', mimeType: 'image/jpeg', size: 1024 })) })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'text/plain', size: 1024 } })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'large-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 5242881 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'zero'), expense({ amountMinor: 0 })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'no-splits'), expense({ splits: [] })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'missing-activity'), expense({ activityId: 'missing' })));

@@ -7,6 +7,7 @@ import {
   serverTimestamp,
   setDoc,
   where,
+  writeBatch,
   type Firestore,
 } from 'firebase/firestore';
 import type { Auth } from 'firebase/auth';
@@ -45,6 +46,23 @@ export class FirestoreTripRepository implements TripRepository {
       ownerId: user.uid,
       updatedAt: serverTimestamp(),
     }, { merge: true });
+  }
+
+  async saveCurrencyConversion(trip: Trip): Promise<void> {
+    const user = this.requireUser();
+    if (trip.expenses.length > 499) throw new Error('This trip has too many expenses to convert in one safe operation.');
+    const { id, activities: _activities, expenses, ...fields } = trip;
+    const batch = writeBatch(this.db);
+    batch.set(doc(this.db, 'trips', id), {
+      ...fields,
+      ownerId: user.uid,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    expenses.forEach((expense) => {
+      const { id: expenseId, ...expenseFields } = expense;
+      batch.set(doc(this.db, 'trips', id, 'expenses', expenseId), expenseFields);
+    });
+    await batch.commit();
   }
 
   async saveActivity(tripId: string, activity: Activity): Promise<void> {
