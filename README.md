@@ -71,6 +71,7 @@ The application is intended to support both **solo planning** and
 
 -   Add destinations and activities to a trip.
 -   Schedule activities with start and end times.
+-   Attach on-device photos and optional outfit-of-the-day notes to activities.
 -   Organize activities chronologically.
 -   Add descriptions, notes, and relevant links.
 -   View the itinerary as a timeline or on a map.
@@ -86,6 +87,7 @@ The application is intended to support both **solo planning** and
 ### Expenses and Budgeting
 
 -   Set an overall trip budget.
+-   Convert a trip's currency using a dated reference rate with a confirmation preview.
 -   Record expenses and identify the person who paid.
 -   Define participants included in an expense.
 -   Support equal and custom expense splits.
@@ -334,12 +336,13 @@ entities:
 | Data store | Cloud Firestore | Owner-scoped trip, activity, and expense records |
 | Development fallback | Browser local storage | Local prototype only; not used in production builds |
 | User preferences | Browser local storage | Time display and default currency for new trips |
+| Currency conversion | Frankfurter API | Current reference rate fetched only when converting a trip |
 | Activity photos | IndexedDB | Manual image attachments stored on this device only |
 | Maps | OpenStreetMap, Photon, OSRM demo | Prototype place search, tiles, and driving estimate |
 | Photos | Wikimedia Commons | Prototype place imagery with source links |
 | Usage limits | Browser-enforced daily limits per account | Fair-use caps for place, route, and photo lookups |
 | Rule tests | Firebase Emulator and Rules Unit Testing | Verify owner-only database access |
-| Unit tests | Vitest | Usage-limit logic |
+| Unit tests | Vitest | Currency conversion and usage-limit logic |
 | Offline support | IndexedDB and service worker | Deferred; no offline trip cache in the MVP |
 | Version control | GitHub | Source code and project documentation |
 
@@ -386,7 +389,51 @@ prototype storage. Production builds refuse to run without Firebase
 configuration. Do not enter sensitive personal or booking information in
 local prototype mode. Map previews use public OpenStreetMap, Photon, OSRM
 demo, and Wikimedia Commons services; queries and coordinates are sent to
-those providers, and routes are not for navigation.
+those providers, and routes are not for navigation. Activity photo blobs
+remain in this browser's IndexedDB and are not uploaded or synced to other
+devices. Currency conversion sends only the source and target currency codes
+to Frankfurter; trip and expense details are not sent. Converted amounts use
+the latest available reference rate and may differ from a payment provider's rate.
+
+## Mobile Builds
+
+The app is wrapped with Capacitor 7. Android APK builds can be created on
+Windows with Android Studio, Android SDK, and JDK 17. iOS builds require
+macOS, Xcode, and Apple signing. The native app ID is
+`com.galananaman.travel`.
+
+### Android APK
+
+1. Install Android Studio and JDK 17, then configure the Android SDK.
+2. Register an Android app with the native app ID in Firebase. Enable Google
+    sign-in, add the app's SHA-1 fingerprint in Firebase project settings, and
+    download `google-services.json` to `android/app/`. The file is ignored by
+    Git. Add the Play App Signing SHA-1 as well before distributing through
+    Google Play.
+3. Generate the Android project with `npm run mobile:add:android`.
+4. Add `rgcfaIncludeGoogle = true` and
+    `androidxCredentialsVersion = '1.3.0'` inside the `ext` block in
+    `android/variables.gradle`, then run `npx cap update android`.
+5. Build and copy the app with `npm run mobile:sync:android`.
+6. Open the project with `npx cap open android`. In Android Studio, use
+    **Build > Build Bundle(s) / APK(s) > Build APK(s)** for a sideloadable APK.
+    Use a signed release build for distribution.
+
+### iOS
+
+1. On a Mac, register an iOS app with the native app ID in Firebase. Enable
+    Google sign-in and download `GoogleService-Info.plist` to `ios/App/`. The
+    file is ignored by Git.
+2. Generate the iOS project with `npm run mobile:add:ios` and build/copy the
+    app with `npm run mobile:sync:ios`.
+3. In Xcode, add the `REVERSED_CLIENT_ID` from the plist as a URL scheme,
+    configure your Apple development team, then run on a device or archive for
+    distribution.
+
+Native Google sign-in exchanges its ID token with Firebase JS Auth, which is
+used by the existing Firestore repository. Firebase web settings in
+`.env.local` are still required. For Android, run `gradlew signingReport` in
+the `android` directory to find the debug SHA-1 before configuring Firebase.
 
 ## Mobile Builds
 

@@ -64,8 +64,17 @@ service cloud.firestore {
         && (!('searchTerm' in location) || isText(location.searchTerm, 1, 200));
     }
 
+    function validPhoto(photo) {
+      return photo is map
+        && hasExactly(photo, ['id', 'name', 'mimeType', 'size'], [])
+        && isText(photo.id, 1, 128)
+        && isText(photo.name, 1, 120)
+        && photo.mimeType is string && photo.mimeType.matches('image/.*')
+        && isMinorAmount(photo.size, 1) && photo.size <= 5242880;
+    }
+
     function validActivity(data) {
-      return hasExactly(data, ['title', 'date', 'startTime', 'endTime', 'category', 'notes'], ['location', 'outfitOfDay', 'outfitNotes', 'photos'])
+      return hasExactly(data, ['title', 'date', 'startTime', 'endTime', 'category', 'notes'], ['location', 'outfitOfDay', 'outfitNotes', 'outfitPhoto', 'photos'])
         && isText(data.title, 1, 90)
         && isDate(data.date)
         && isTime(data.startTime)
@@ -76,6 +85,7 @@ service cloud.firestore {
         && (!('location' in data) || validLocation(data.location))
         && (!('outfitOfDay' in data) || data.outfitOfDay is bool)
         && (!('outfitNotes' in data) || isText(data.outfitNotes, 0, 300))
+        && (!('outfitPhoto' in data) || data.outfitPhoto == null || validPhoto(data.outfitPhoto))
         && (!('photos' in data) || (data.photos is list && data.photos.size() <= 5));
     }
 
