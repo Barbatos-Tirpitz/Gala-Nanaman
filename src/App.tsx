@@ -663,6 +663,7 @@ function AppWorkspace() {
   const [itineraryMode, setItineraryMode] = useState<'list' | 'map'>('list');
   const [dialog, setDialog] = useState<DialogState>(null);
   const [storageError, setStorageError] = useState(false);
+  const [tripRefreshNotice, setTripRefreshNotice] = useState('');
   const [activityPhotoNotice, setActivityPhotoNotice] = useState('');
   const [loadingTrips, setLoadingTrips] = useState(true);
   const [settings, setSettings] = useState<UserSettings>(loadUserSettings);
@@ -711,6 +712,7 @@ function AppWorkspace() {
       ? current
       : loadedTrips.find((trip) => !trip.archived)?.id ?? '');
     setStorageError(false);
+    setTripRefreshNotice('');
   }
 
   async function setTripArchived(trip: Trip, archived: boolean) {
@@ -756,7 +758,7 @@ function AppWorkspace() {
     try {
       await refreshTrips();
     } catch {
-      setStorageError(true);
+      setTripRefreshNotice('Trip saved, but the latest trip list could not be refreshed. Reload the page to sync the view.');
       setTrips((current) => current.some((trip) => trip.id === savedTrip.id)
         ? current.map((trip) => trip.id === savedTrip.id ? savedTrip : trip)
         : [...current, savedTrip]);
@@ -873,7 +875,10 @@ function AppWorkspace() {
           </div>
         </header>
 
-        {storageError && <div className="storage-alert" role="status">Trip data could not be loaded or saved. Check your connection and account access.</div>}
+        {storageError && <div className="storage-alert" role="status">{auth.configured
+          ? 'Firestore could not load or save trip data. Check your connection and sign-in; each trip is saved with the signed-in user UID as ownerId, and Firestore Rules must allow that owner.'
+          : 'Firebase is not configured in this browser. Trip data is using local prototype storage, not a database. Configure .env.local to connect Firestore.'}</div>}
+        {tripRefreshNotice && <div className="photo-save-notice" role="status">{tripRefreshNotice}</div>}
         {activityPhotoNotice && <div className="photo-save-notice" role="status">{activityPhotoNotice}</div>}
 
         {currentView === 'trips' ? (
