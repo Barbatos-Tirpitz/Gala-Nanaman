@@ -1,0 +1,178 @@
+[debug] [2026-11-17T20:39:46.781Z] ----------------------------------------------------------------------
+[debug] [2026-11-17T20:39:46.784Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\RazgrizTirpitz\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js init hosting
+[debug] [2026-11-17T20:39:46.784Z] CLI Version:   15.36.0
+[debug] [2026-11-17T20:39:46.784Z] Platform:      win32
+[debug] [2026-11-17T20:39:46.785Z] Node Version:  v24.18.0
+[debug] [2026-11-17T20:39:46.785Z] Detected Agent: unknown
+[debug] [2026-11-17T20:39:46.785Z] Time:          Wed Nov 18 2026 04:39:46 GMT+0800 (Philippine Standard Time)
+[debug] [2026-11-17T20:39:46.785Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+     ######## #### ########  ######## ########     ###     ######  ########
+     ##        ##  ##     ## ##       ##     ##  ##   ##  ##       ##
+     ######    ##  ########  ######   ########  #########  ######  ######
+     ##        ##  ##    ##  ##       ##     ## ##     ##       ## ##
+     ##       #### ##     ## ######## ########  ##     ##  ######  ########
+
+You're about to initialize a Firebase project in this directory:
+
+  W:\Software Projects\Gala-Nanaman\Gala-Nanaman
+
+Before we get started, keep in mind:
+
+  * You are initializing within an existing Firebase project directory
+
+[debug] [2026-11-17T20:39:55.991Z] ExitPromptError: User force closed the prompt with SIGINT
+    at Interface.sigint (C:\Users\RazgrizTirpitz\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\@inquirer\core\dist\commonjs\lib\create-prompt.js:101:37)
+    at Interface.emit (node:events:509:28)
+    at [_ttyWrite] [as _ttyWrite] (node:internal/readline/interface:1327:18)
+    at ReadStream.onkeypress (node:internal/readline/interface:284:20)
+    at ReadStream.emit (node:events:521:24)
+    at emitKeys (node:internal/readline/utils:371:14)
+    at emitKeys.next (<anonymous>)
+    at ReadStream.onData (node:internal/readline/emitKeypressEvents:64:36)
+    at ReadStream.emit (node:events:509:28)
+    at addChunk (node:internal/streams/readable:563:12)
+[error] 
+[error] Error: An unexpected error has occurred.
+[debug] [2026-11-17T20:41:03.860Z] ----------------------------------------------------------------------
+[debug] [2026-11-17T20:41:03.863Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\RazgrizTirpitz\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2026-11-17T20:41:03.864Z] CLI Version:   15.36.0
+[debug] [2026-11-17T20:41:03.864Z] Platform:      win32
+[debug] [2026-11-17T20:41:03.864Z] Node Version:  v24.18.0
+[debug] [2026-11-17T20:41:03.864Z] Detected Agent: unknown
+[debug] [2026-11-17T20:41:03.864Z] Time:          Wed Nov 18 2026 04:41:03 GMT+0800 (Philippine Standard Time)
+[debug] [2026-11-17T20:41:03.864Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-11-17T20:41:06.236Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-11-17T20:41:06.236Z] > authorizing via signed-in user (barbatosjaegar@gmail.com)
+[debug] [2026-11-17T20:41:06.493Z] Resolved Java binary from java.home: W:\Java\bin\java.exe
+[debug] [2026-11-17T20:41:06.493Z] Parsed Java major version: 25
+[info] i  emulators: Starting emulators: auth, firestore, hosting {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, firestore, hosting"}}
+[debug] [2026-11-17T20:41:06.527Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-11-17T20:41:06.527Z] [auth] Authentication Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-11-17T20:41:06.527Z] [firestore] Firestore Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-11-17T20:41:06.527Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[warn] !  hosting: Hosting Emulator unable to start on port 5000, starting on 5002 instead. {"metadata":{"emulator":{"name":"hosting"},"message":"Hosting Emulator unable to start on port 5000, starting on 5002 instead."}}
+[debug] [2026-11-17T20:41:06.531Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-11-17T20:41:06.531Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5002}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-11-17T20:41:06.539Z] Write emulator hub locator at C:\Users\RAZGRI~1\AppData\Local\Temp\hub-gala-nanaman.json
+[info] i  firestore: downloading cloud-firestore-emulator-v1.22.0.jar... {"metadata":{"emulator":{"name":"firestore"},"message":"downloading cloud-firestore-emulator-v1.22.0.jar..."}}
+[debug] [2026-11-17T20:41:06.565Z] >>> [apiv2][query] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.22.0.jar 
+[debug] [2026-11-17T20:41:06.942Z] <<< [apiv2][status] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.22.0.jar 200
+[debug] [2026-11-17T20:41:06.942Z] <<< [apiv2][body] GET https://storage.googleapis.com/firebase-preview-drop/emulator/cloud-firestore-emulator-v1.22.0.jar [stream]
+[info] i  firestore: Removing outdated emulator files: cloud-firestore-emulator-v1.19.8.jar {"metadata":{"emulator":{"name":"firestore"},"message":"Removing outdated emulator files: cloud-firestore-emulator-v1.19.8.jar"}}
+[debug] [2026-11-17T20:41:13.730Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-11-17T20:41:13.730Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2026-11-17T20:41:13.731Z] Starting Firestore Emulator with command {"binary":"W:\\Java\\bin\\java.exe","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\RazgrizTirpitz\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.22.0.jar","--host","127.0.0.1","--port",8080,"--websocket_port",9150,"--database-edition","standard","--project_id","gala-nanaman","--rules","W:\\Software Projects\\Gala-Nanaman\\Gala-Nanaman\\firestore.rules","--single_project_mode",true],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","database-edition","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"W:\\\\Java\\\\bin\\\\java.exe\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\RazgrizTirpitz\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.22.0.jar\",\"--host\",\"127.0.0.1\",\"--port\",8080,\"--websocket_port\",9150,\"--database-edition\",\"standard\",\"--project_id\",\"gala-nanaman\",\"--rules\",\"W:\\\\Software Projects\\\\Gala-Nanaman\\\\Gala-Nanaman\\\\firestore.rules\",\"--single_project_mode\",true],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"database-edition\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
+[debug] [2026-11-17T20:41:14.411Z] WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::allocateMemory has been called by io.netty.util.internal.PlatformDependent0$2 (file:/C:/Users/RazgrizTirpitz/.cache/firebase/emulators/cloud-firestore-emulator-v1.22.0.jar)
+WARNING: Please consider reporting this to the maintainers of class io.netty.util.internal.PlatformDependent0$2
+WARNING: sun.misc.Unsafe::allocateMemory will be removed in a future release
+ {"metadata":{"emulator":{"name":"firestore"},"message":"WARNING: A terminally deprecated method in sun.misc.Unsafe has been called\nWARNING: sun.misc.Unsafe::allocateMemory has been called by io.netty.util.internal.PlatformDependent0$2 (file:/C:/Users/RazgrizTirpitz/.cache/firebase/emulators/cloud-firestore-emulator-v1.22.0.jar)\nWARNING: Please consider reporting this to the maintainers of class io.netty.util.internal.PlatformDependent0$2\nWARNING: sun.misc.Unsafe::allocateMemory will be removed in a future release\r\n"}}
+[debug] [2026-11-17T20:41:15.823Z] Nov 18, 2026 4:41:15 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start
+INFO: Started WebSocket server on ws://127.0.0.1:9150
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Nov 18, 2026 4:41:15 AM com.google.cloud.datastore.emulator.firestore.websocket.WebSocketServer start\r\nINFO: Started WebSocket server on ws://127.0.0.1:9150\r\n"}}
+[debug] [2026-11-17T20:41:15.919Z] 
+API endpoint: http:// {"metadata":{"emulator":{"name":"firestore"},"message":"\nAPI endpoint: http://"}}
+[debug] [2026-11-17T20:41:15.920Z] 127.0.0.1:8080
+Database Edition: STANDARD
+Database Mode: CLOUD_FIRESTORE
+
+If you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:
+
+   export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080
+
+If you are running a Firestore in Datastore Mode project, run:
+
+   export DATASTORE_EMULATOR_HOST=127.0.0.1:8080
+
+ {"metadata":{"emulator":{"name":"firestore"},"message":"127.0.0.1:8080\nDatabase Edition: STANDARD\nDatabase Mode: CLOUD_FIRESTORE\n\nIf you are using a library that supports the FIRESTORE_EMULATOR_HOST environment variable, run:\r\n\n   export FIRESTORE_EMULATOR_HOST=127.0.0.1:8080\n\nIf you are running a Firestore in Datastore Mode project, run:\r\n\n   export DATASTORE_EMULATOR_HOST=127.0.0.1:8080\n\n"}}
+[debug] [2026-11-17T20:41:15.920Z] Note: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.
+Dev App Server is now running.
+
+ {"metadata":{"emulator":{"name":"firestore"},"message":"Note: Support for Datastore Mode is in preview. If you encounter any bugs please file at https://github.com/firebase/firebase-tools/issues.\r\nDev App Server is now running.\n\r\n"}}
+[info] +  firestore: Firestore Emulator was started in standard edition. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator was started in standard edition."}}
+[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+[debug] [2026-11-17T20:41:16.619Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:16.619Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:16.622Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/gala-nanaman/sites 
+[debug] [2026-11-17T20:41:17.448Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/gala-nanaman/sites 200
+[debug] [2026-11-17T20:41:17.448Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/gala-nanaman/sites {"sites":[{"name":"projects/gala-nanaman/sites/gala-nanaman","defaultUrl":"https://gala-nanaman.web.app","appId":"1:495747038385:web:bc23b1c7f0694b6b64f690","type":"DEFAULT_SITE"}]}
+[debug] [2026-11-17T20:41:17.449Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:17.449Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:17.449Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman/webApps/1:495747038385:web:bc23b1c7f0694b6b64f690/config [none]
+[debug] [2026-11-17T20:41:18.566Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman/webApps/1:495747038385:web:bc23b1c7f0694b6b64f690/config 200
+[debug] [2026-11-17T20:41:18.566Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman/webApps/1:495747038385:web:bc23b1c7f0694b6b64f690/config {"projectId":"gala-nanaman","appId":"1:495747038385:web:bc23b1c7f0694b6b64f690","storageBucket":"gala-nanaman.firebasestorage.app","apiKey":"AIzaSyAsK3iJi2_gW4_KE6yTxMZxdh1gOCxsRoA","authDomain":"gala-nanaman.firebaseapp.com","messagingSenderId":"495747038385","measurementId":"G-59WGNLJNW5","projectNumber":"495747038385","version":"2"}
+[debug] [2026-11-17T20:41:18.576Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:18.576Z] Checked if tokens are valid: true, expires at: 1794951228639
+[debug] [2026-11-17T20:41:18.577Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman [none]
+[debug] [2026-11-17T20:41:18.849Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman 200
+[debug] [2026-11-17T20:41:18.849Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/gala-nanaman {"projectId":"gala-nanaman","projectNumber":"495747038385","displayName":"Gala-Nanaman","name":"projects/gala-nanaman","resources":{"hostingSite":"gala-nanaman"},"state":"ACTIVE","labels":{"firebase":"enabled"},"etag":"1_7fa02973-6bcd-4126-8a0f-86bcb505c5ed"}
+[info] i  hosting[gala-nanaman]: Serving hosting files from: public {"metadata":{"emulator":{"name":"hosting"},"message":"Serving hosting files from: \u001b[1mpublic\u001b[22m"}}
+[info] +  hosting[gala-nanaman]: Local server: http://127.0.0.1:5002 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://127.0.0.1:5002\u001b[22m\u001b[24m"}}
+[warn] !  emulators: The Emulator UI is not starting because none of the running emulators have a UI component. {"metadata":{"emulator":{"name":"hub"},"message":"The Emulator UI is not starting because none of the running emulators have a UI component."}}
+[debug] [2026-11-17T20:41:18.889Z] Could not find VSCode notification endpoint: TypeError: fetch failed. If you are not running the Firebase SQL Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬────────────────┐
+│ Emulator       │ Host:Port      │
+├────────────────┼────────────────┤
+│ Authentication │ 127.0.0.1:9099 │
+├────────────────┼────────────────┤
+│ Firestore      │ 127.0.0.1:8080 │
+├────────────────┼────────────────┤
+│ Hosting        │ 127.0.0.1:5002 │
+└────────────────┴────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.448Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-app-compat.js [none]
+[debug] [2026-11-17T20:41:23.452Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-auth-compat.js [none]
+[debug] [2026-11-17T20:41:23.473Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-database-compat.js [none]
+[debug] [2026-11-17T20:41:23.475Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore-compat.js [none]
+[debug] [2026-11-17T20:41:23.477Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-functions-compat.js [none]
+[debug] [2026-11-17T20:41:23.479Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-messaging-compat.js [none]
+[debug] [2026-11-17T20:41:23.557Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-app-compat.js 200
+[debug] [2026-11-17T20:41:23.557Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-app-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-app-compat.js HTTP/1.1" 200 10705 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-app-compat.js HTTP/1.1\" 200 10705 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.563Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-auth-compat.js 200
+[debug] [2026-11-17T20:41:23.563Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-auth-compat.js [stream]
+[debug] [2026-11-17T20:41:23.569Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-storage-compat.js [none]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-auth-compat.js HTTP/1.1" 200 40854 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-auth-compat.js HTTP/1.1\" 200 40854 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.575Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics-compat.js [none]
+[debug] [2026-11-17T20:41:23.581Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-database-compat.js 200
+[debug] [2026-11-17T20:41:23.581Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-database-compat.js [stream]
+[debug] [2026-11-17T20:41:23.585Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore-compat.js 200
+[debug] [2026-11-17T20:41:23.585Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-database-compat.js HTTP/1.1" 200 48143 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-database-compat.js HTTP/1.1\" 200 48143 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.595Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-messaging-compat.js 200
+[debug] [2026-11-17T20:41:23.595Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-messaging-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-messaging-compat.js HTTP/1.1" 200 12430 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-messaging-compat.js HTTP/1.1\" 200 12430 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.605Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-functions-compat.js 200
+[debug] [2026-11-17T20:41:23.606Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-functions-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-functions-compat.js HTTP/1.1" 200 4234 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-functions-compat.js HTTP/1.1\" 200 4234 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.609Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-remote-config-compat.js [none]
+[debug] [2026-11-17T20:41:23.610Z] >>> [apiv2][query] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-performance-compat.js [none]
+[debug] [2026-11-17T20:41:23.616Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics-compat.js 200
+[debug] [2026-11-17T20:41:23.616Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-analytics-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-analytics-compat.js HTTP/1.1" 200 8957 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-analytics-compat.js HTTP/1.1\" 200 8957 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.618Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-storage-compat.js 200
+[debug] [2026-11-17T20:41:23.619Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-storage-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-storage-compat.js HTTP/1.1" 200 13232 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-storage-compat.js HTTP/1.1\" 200 13232 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/init.js?useEmulator=true HTTP/1.1" 200 - "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/init.js?useEmulator=true HTTP/1.1\" 200 - \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-firestore-compat.js HTTP/1.1" 200 171461 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-firestore-compat.js HTTP/1.1\" 200 171461 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.653Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-remote-config-compat.js 200
+[debug] [2026-11-17T20:41:23.654Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-remote-config-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-remote-config-compat.js HTTP/1.1" 200 12967 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-remote-config-compat.js HTTP/1.1\" 200 12967 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[debug] [2026-11-17T20:41:23.662Z] <<< [apiv2][status] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-performance-compat.js 200
+[debug] [2026-11-17T20:41:23.662Z] <<< [apiv2][body] GET https://www.gstatic.com/firebasejs/13.4.0/firebase-performance-compat.js [stream]
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /__/firebase/13.4.0/firebase-performance-compat.js HTTP/1.1" 200 13641 "http://127.0.0.1:5002/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /__/firebase/13.4.0/firebase-performance-compat.js HTTP/1.1\" 200 13641 \"http://127.0.0.1:5002/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
+[info] i  hosting: 127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] "GET /favicon.ico HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36" {"metadata":{"emulator":{"name":"hosting"},"message":"127.0.0.1 - - [17/Nov/2026:20:41:23 +0000] \"GET /favicon.ico HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.143.1 Chrome/150.0.7871.250 Electron/43.7.7 Safari/537.36\""}}
