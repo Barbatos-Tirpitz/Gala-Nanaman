@@ -388,6 +388,46 @@ local prototype mode. Map previews use public OpenStreetMap, Photon, OSRM
 demo, and Wikimedia Commons services; queries and coordinates are sent to
 those providers, and routes are not for navigation.
 
+## Mobile Builds
+
+The app is wrapped with Capacitor 7. Android APK builds can be created on
+Windows with Android Studio, Android SDK, and JDK 17. iOS builds require
+macOS, Xcode, and Apple signing. The native app ID is
+`com.galananaman.travel`.
+
+### Android APK
+
+1. Install Android Studio and JDK 17, then configure the Android SDK.
+2. Register an Android app with the native app ID in Firebase. Enable Google
+    sign-in, add the app's SHA-1 fingerprint in Firebase project settings, and
+    download `google-services.json` to `android/app/`. The file is ignored by
+    Git. Add the Play App Signing SHA-1 as well before distributing through
+    Google Play.
+3. Generate the Android project with `npm run mobile:add:android`.
+4. Add `rgcfaIncludeGoogle = true` and
+    `androidxCredentialsVersion = '1.3.0'` inside the `ext` block in
+    `android/variables.gradle`, then run `npx cap update android`.
+5. Build and copy the app with `npm run mobile:sync:android`.
+6. Open the project with `npx cap open android`. In Android Studio, use
+    **Build > Build Bundle(s) / APK(s) > Build APK(s)** for a sideloadable APK.
+    Use a signed release build for distribution.
+
+### iOS
+
+1. On a Mac, register an iOS app with the native app ID in Firebase. Enable
+    Google sign-in and download `GoogleService-Info.plist` to `ios/App/`. The
+    file is ignored by Git.
+2. Generate the iOS project with `npm run mobile:add:ios` and build/copy the
+    app with `npm run mobile:sync:ios`.
+3. In Xcode, add the `REVERSED_CLIENT_ID` from the plist as a URL scheme,
+    configure your Apple development team, then run on a device or archive for
+    distribution.
+
+Native Google sign-in exchanges its ID token with Firebase JS Auth, which is
+used by the existing Firestore repository. Firebase web settings in
+`.env.local` are still required. For Android, run `gradlew signingReport` in
+the `android` directory to find the debug SHA-1 before configuring Firebase.
+
 ## MVP Roadmap
 
 The sequence below is proposed. Complete Phase 0 before beginning feature

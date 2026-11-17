@@ -6,3 +6,5 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+android/app/google-services.json
+ios/App/GoogleService-Info.plist

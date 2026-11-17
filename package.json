@@ -9,9 +9,16 @@
     "build": "npm run check && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:rules": "firebase emulators:exec --project demo-gala-nanaman-rules-test --only firestore \"node --test tests/firestore.rules.test.mjs\""
+    "test:rules": "firebase emulators:exec --project demo-gala-nanaman-rules-test --only firestore \"node --test tests/firestore.rules.test.mjs\"",
+    "mobile:sync": "npm run build && cap sync",
+    "mobile:sync:android": "npm run build && cap sync android",
+    "mobile:sync:ios": "npm run build && cap sync ios",
+    "mobile:add:android": "cap add android",
+    "mobile:add:ios": "cap add ios"
   },
   "dependencies": {
+    "@capacitor-firebase/authentication": "^7.3.0",
+    "@capacitor/core": "^7.4.3",
     "firebase": "^11.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
@@ -20,6 +27,9 @@
     "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/ios": "^7.4.3",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@types/leaflet": "^1.9.16",
     "@types/react": "^19.0.0",
