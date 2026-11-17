@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth';
+import { Capacitor } from '@capacitor/core';
+import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { firebaseAuth, firebaseConfigured } from '../firebase';
 
 interface AuthContextValue {
@@ -40,7 +42,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!firebaseAuth) return;
       setError('');
       try {
-        await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+        if (Capacitor.isNativePlatform()) {
+          const result = await FirebaseAuthentication.signInWithGoogle({ skipNativeAuth: true });
+          const idToken = result.credential?.idToken;
+          if (!idToken) throw new Error('Google did not return an ID token.');
+          await signInWithCredential(firebaseAuth, GoogleAuthProvider.credential(idToken));
+        } else {
+          await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+        }
       } catch {
         setError('Google sign-in failed. Check the Firebase provider and authorized domains.');
       }

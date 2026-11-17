@@ -1,5 +1,6 @@
+import { Capacitor } from '@capacitor/core';
 import { initializeApp, type FirebaseOptions } from 'firebase/app';
-import { connectAuthEmulator, getAuth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, indexedDBLocalPersistence, initializeAuth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore } from 'firebase/firestore';
 
 const config: FirebaseOptions = {
@@ -11,7 +12,11 @@ const config: FirebaseOptions = {
 
 export const firebaseConfigured = Boolean(config.apiKey && config.authDomain && config.projectId && config.appId);
 export const firebaseApp = firebaseConfigured ? initializeApp(config) : null;
-export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
+export const firebaseAuth = firebaseApp
+  ? Capacitor.isNativePlatform()
+    ? initializeAuth(firebaseApp, { persistence: indexedDBLocalPersistence })
+    : getAuth(firebaseApp)
+  : null;
 export const firestore = firebaseApp ? getFirestore(firebaseApp) : null;
 
 if (import.meta.env.DEV && import.meta.env.VITE_FIREBASE_USE_EMULATORS === 'true' && firebaseAuth && firestore) {
