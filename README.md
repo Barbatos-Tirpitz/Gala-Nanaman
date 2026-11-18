@@ -13,9 +13,20 @@ itinerary, map, expense, and currency-conversion workflows. Product scope
 and production readiness are still being validated; this is not a
 production-ready application.
 
+## Screenshots
+
+| Trips | Itinerary |
+|---|---|
+| <img src="docs/images/trips.png" alt="Trips list" width="100%"> | <img src="docs/images/trip-itinerary.png" alt="Trip overview and itinerary" width="100%"> |
+
+| Itinerary map | Expenses |
+|---|---|
+| <img src="docs/images/itinerary-map.png" alt="Itinerary map with route and place preview" width="100%"> | <img src="docs/images/expenses.png" alt="Trip expenses and budget overview" width="100%"> |
+
 ## Table of Contents
 
 -   [Vision](#vision)
+-   [Screenshots](#screenshots)
 -   [Product Principles](#product-principles)
 -   [Planned Features](#planned-features)
 -   [Collaboration Model](#collaboration-model)
