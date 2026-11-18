@@ -10,6 +10,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/trips/$(tripId);
     }
 
+    function activityPath(tripId, activityId) {
+      return /databases/$(database)/documents/trips/$(tripId)/activities/$(activityId);
+    }
+
     function ownsTrip(tripId) {
       return signedIn()
         && exists(tripPath(tripId))
@@ -37,15 +41,17 @@ service cloud.firestore {
     }
 
     function validTrip(data) {
-      return hasExactly(data, ['name', 'destination', 'startDate', 'endDate', 'timeZone', 'currencyCode', 'budgetMinor', 'ownerId', 'updatedAt'], [])
+      return hasExactly(data, ['name', 'destination', 'startDate', 'endDate', 'timeZone', 'currencyCode', 'budgetMinor', 'ownerId', 'updatedAt'], ['archived', 'completedDayDates'])
         && isText(data.name, 1, 70)
         && isText(data.destination, 1, 80)
         && isDate(data.startDate)
         && isDate(data.endDate)
         && data.endDate >= data.startDate
         && isText(data.timeZone, 1, 64)
-        && data.currencyCode in ['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'AUD']
+        && data.currencyCode in ['USD', 'CAD', 'EUR', 'GBP', 'JPY', 'AUD', 'PHP']
         && isMinorAmount(data.budgetMinor, 0)
+        && (!('archived' in data) || data.archived is bool)
+        && (!('completedDayDates' in data) || (data.completedDayDates is list && data.completedDayDates.size() <= 366))
         && data.ownerId == request.auth.uid
         && data.updatedAt == request.time;
     }
@@ -59,8 +65,27 @@ service cloud.firestore {
         && (!('searchTerm' in location) || isText(location.searchTerm, 1, 200));
     }
 
+    function validPhoto(photo) {
+      return photo is map
+        && hasExactly(photo, ['id', 'name', 'mimeType', 'size'], [])
+        && isText(photo.id, 1, 128)
+        && isText(photo.name, 1, 120)
+        && photo.mimeType is string && photo.mimeType.matches('image/.*')
+        && isMinorAmount(photo.size, 1) && photo.size <= 5242880;
+    }
+
+    function validPhotos(photos) {
+      return photos is list
+        && photos.size() <= 5
+        && (photos.size() < 1 || validPhoto(photos[0]))
+        && (photos.size() < 2 || validPhoto(photos[1]))
+        && (photos.size() < 3 || validPhoto(photos[2]))
+        && (photos.size() < 4 || validPhoto(photos[3]))
+        && (photos.size() < 5 || validPhoto(photos[4]));
+    }
+
     function validActivity(data) {
-      return hasExactly(data, ['title', 'date', 'startTime', 'endTime', 'category', 'notes'], ['location'])
+      return hasExactly(data, ['title', 'date', 'startTime', 'endTime', 'category', 'notes'], ['location', 'outfitOfDay', 'outfitNotes', 'outfitPhoto', 'photos'])
         && isText(data.title, 1, 90)
         && isDate(data.date)
         && isTime(data.startTime)
@@ -68,19 +93,24 @@ service cloud.firestore {
         && data.endTime > data.startTime
         && data.category in ['Explore', 'Food', 'Stay', 'Transit']
         && isText(data.notes, 0, 400)
-        && (!('location' in data) || validLocation(data.location));
+        && (!('location' in data) || validLocation(data.location))
+        && (!('outfitOfDay' in data) || data.outfitOfDay is bool)
+        && (!('outfitNotes' in data) || isText(data.outfitNotes, 0, 300))
+        && (!('outfitPhoto' in data) || data.outfitPhoto == null || validPhoto(data.outfitPhoto))
+        && (!('photos' in data) || validPhotos(data.photos));
     }
 
     // Rules cannot iterate list entries, so the app verifies that split shares sum to the total.
-    function validExpense(data) {
-      return hasExactly(data, ['title', 'date', 'amountMinor', 'paidBy', 'splits'], [])
+    function validExpense(tripId, data) {
+      return hasExactly(data, ['title', 'date', 'amountMinor', 'paidBy', 'splits'], ['activityId'])
         && isText(data.title, 1, 80)
         && isDate(data.date)
         && isMinorAmount(data.amountMinor, 1)
         && isText(data.paidBy, 1, 60)
         && data.splits is list
         && data.splits.size() >= 1
-        && data.splits.size() <= 30;
+        && data.splits.size() <= 30
+        && (!('activityId' in data) || (isText(data.activityId, 1, 128) && exists(activityPath(tripId, data.activityId))));
     }
 
     match /trips/{tripId} {
@@ -98,7 +128,7 @@ service cloud.firestore {
 
       match /expenses/{expenseId} {
         allow read, delete: if ownsTrip(tripId);
-        allow create, update: if ownsTrip(tripId) && validExpense(request.resource.data);
+        allow create, update: if ownsTrip(tripId) && validExpense(tripId, request.resource.data);
       }
     }
   }
