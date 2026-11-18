@@ -412,6 +412,19 @@ generated `dist` directory; keep the Vite entry point at the project root.
 Hosting and Firestore Rules deploy separately. Double-check the target alias
 before deploying, especially to `prod`.
 
+The workflow at `.github/workflows/firebase-hosting-merge.yml` automatically
+builds and deploys the production site to Firebase Hosting after changes are
+pushed or merged to `main`. In GitHub, add the production web app values as
+Actions variables named `VITE_FIREBASE_API_KEY`,
+`VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and
+`VITE_FIREBASE_APP_ID` under **Settings → Secrets and variables → Actions →
+Variables**. These Firebase web settings are public client configuration.
+The workflow also requires the
+`FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN` Actions secret used to authorize
+Firebase Hosting deployment. A missing web configuration variable causes
+the build step to fail instead of deploying an app that cannot connect to
+Firebase.
+
 With Java 11 or newer installed, run `npm run test:rules` to check owner
 isolation and data validation.
 
