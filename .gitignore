@@ -6,5 +6,7 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+firebase-debug.log
+firestore-debug.log
 android/app/google-services.json
 ios/App/GoogleService-Info.plist

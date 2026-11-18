@@ -27,25 +27,20 @@
       "port": 8080
     },
     "ui": {
-      "enabled": false
+      "enabled": true
     },
-    "singleProjectMode": true
-  },
-  "hosting": {
-    "public": "public",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
+    "singleProjectMode": true,
+    "database": {
+      "port": 9000
+    },
+    "hosting": {
+      "port": 5000
+    }
   },
   "auth": {
     "providers": {}
+  },
+  "database": {
+    "rules": "database.rules.json"
   }
 }
