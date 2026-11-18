@@ -86,6 +86,7 @@ test('trip writes must match the schema and the signed-in owner', async () => {
   await assertFails(setDoc(doc(db, 'trips', 'trip-e'), trip('user-a', { isAdmin: true })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-f'), trip('user-a', { name: 'x'.repeat(71) })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-g'), trip('user-a', { archived: 'yes' })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-h'), trip('user-a', { completedDayDates: '2027-05-13' })));
 });
 
 test('an owner cannot transfer a trip to another account', async () => {
@@ -125,6 +126,8 @@ test('activity and expense writes are validated', async () => {
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-place'), activity({ location: { label: 'Nowhere', latitude: 120, longitude: 0 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'extra-field'), activity({ ownerId: 'user-b' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'too-many-photos'), activity({ photos: Array.from({ length: 6 }, (_, index) => ({ id: `photo-${index}`, name: 'photo.jpg', mimeType: 'image/jpeg', size: 1024 })) })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-photo-entry'), activity({ photos: [{ id: 'photo-a', name: 'photo.jpg', mimeType: 'text/plain', size: 1024 }] })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-outfit-flag'), activity({ outfitOfDay: 'yes' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'text/plain', size: 1024 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'large-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 5242881 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'zero'), expense({ amountMinor: 0 })));
