@@ -1,0 +1,9 @@
+{
+  "projects": {
+    "dev": "gala-nanaman-dev",
+    "prod": "gala-nanaman",
+    "default": "gala-nanaman"
+  },
+  "targets": {},
+  "etags": {}
+}
