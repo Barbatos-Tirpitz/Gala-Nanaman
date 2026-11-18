@@ -426,13 +426,14 @@ before deploying, especially to `prod`.
 The workflow at `.github/workflows/firebase-hosting-merge.yml` automatically
 builds and deploys the production site to Firebase Hosting after changes are
 pushed or merged to `main`. In GitHub, add the production web app values as
-Actions variables named `VITE_FIREBASE_API_KEY`,
+Actions secrets named `VITE_FIREBASE_API_KEY`,
 `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, and
 `VITE_FIREBASE_APP_ID` under **Settings → Secrets and variables → Actions →
-Variables**. These Firebase web settings are public client configuration.
+Secrets**. These Firebase web settings are public client configuration and
+will be included in the deployed app bundle.
 The workflow also requires the
 `FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN` Actions secret used to authorize
-Firebase Hosting deployment. A missing web configuration variable causes
+Firebase Hosting deployment. A missing web configuration secret causes
 the build step to fail instead of deploying an app that cannot connect to
 Firebase.
 
