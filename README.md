@@ -433,7 +433,19 @@ Secrets**. These Firebase web settings are public client configuration and
 will be included in the deployed app bundle.
 The workflow also requires the
 `FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN` Actions secret used to authorize
-Firebase Hosting deployment. A missing web configuration secret causes
+Firebase Hosting deployment. In the Firebase console for `gala-nanaman`, open
+**Project settings > Service accounts > Firebase Admin SDK > Generate new private key**.
+Treat the downloaded JSON as a private credential. In this GitHub repository,
+open **Settings > Secrets and variables > Actions > New repository secret**,
+name it `FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN`, and paste the complete JSON
+contents as its value, not a file path. Use a repository secret, not an Actions
+variable; the deployment jobs do not select a GitHub environment. Never commit
+the key or print it in logs. Both Hosting workflows pass this secret directly
+to the action's `firebaseServiceAccount` input. If that input is reported as
+missing, verify the secret exists and is available to the run, then rerun the
+workflow. Fork pull requests are excluded from preview deployment, and GitHub
+does not provide Actions secrets to Dependabot pull requests.
+A missing web configuration secret causes
 the build step to fail instead of deploying an app that cannot connect to
 Firebase.
 
