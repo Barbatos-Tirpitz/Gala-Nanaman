@@ -176,15 +176,19 @@ suggestion queue will require controlled writes and validation.
 The MVP is **online first**. Offline functionality is intentionally
 limited to viewing previously synchronized information.
 
-A Progressive Web App (PWA) is planned to cache the application shell
-and selected trip data locally.
+A Progressive Web App caches versioned static application-shell assets, not
+authenticated API responses. Trip snapshots are opt-in, read-only, scoped to a
+restored Firebase session and expire seven days after server-verified sync.
+Switching off Offline copy clears the snapshot; so do explicit sign-out, account
+changes and detected online denial. Offline revocation cannot be checked and local
+data is accessible to device/browser users. Expiry is enforced when the app runs,
+not as guaranteed timed deletion. Local photos have a separate lifecycle.
 
   Feature                                 Offline behavior
   --------------------------------------- ------------------
   Previously synchronized trip overview   Read-only
   Cached itinerary                        Read-only
   Saved destination details               Read-only
-  Cached accommodation information        Read-only
   Expense summaries                       Read-only
   Submit suggestions                      Unavailable
   Approve or reject suggestions           Unavailable
@@ -192,7 +196,7 @@ and selected trip data locally.
   Add or edit expenses                    Unavailable
   Live map search and route calculation   Unavailable
 
-Planned implementation considerations:
+Implementation behavior:
 
 -   Use a service worker to cache the application shell.
 -   Use IndexedDB for locally cached trip snapshots.
@@ -355,7 +359,7 @@ entities:
 | Usage limits | Browser-enforced daily limits per account | Fair-use caps for place, route, and photo lookups |
 | Rule tests | Firebase Emulator and Rules Unit Testing | Verify owner-only database access |
 | Unit tests | Vitest | Currency conversion and usage-limit logic |
-| Offline support | IndexedDB and service worker | Deferred; no offline trip cache in the MVP |
+| Offline support | IndexedDB and service worker | Opt-in seven-day read-only snapshots; authenticated/native release checks pending |
 | Version control | GitHub | Source code and project documentation |
 
 Map, routing, and photo providers are prototype choices, not production
@@ -438,7 +442,13 @@ Firebase Hosting deployment. In the Firebase console for `gala-nanaman`, open
 Treat the downloaded JSON as a private credential. In this GitHub repository,
 open **Settings > Secrets and variables > Actions > New repository secret**,
 name it `FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN`, and paste the complete JSON
-contents as its value, not a file path. Use a repository secret, not an Actions
+contents as its value, not a file path. Do not paste `.env` contents or
+`VITE_FIREBASE_*` assignments into this secret; keep the four web configuration
+values in their separate secrets. An `Unexpected token 'V'` / `not valid JSON`
+authentication error means the deployment credential is not valid JSON. Edit
+the existing `FIREBASE_SERVICE_ACCOUNT_GALA_NANAMAN` repository secret and
+replace its value with the complete service-account JSON, then rerun the workflow.
+Use a repository secret, not an Actions
 variable; the deployment jobs do not select a GitHub environment. Never commit
 the key or print it in logs. Both Hosting workflows pass this secret directly
 to the action's `firebaseServiceAccount` input. If that input is reported as
@@ -554,8 +564,9 @@ production-ready.
 The proposed first release lets an authenticated trip owner manage trips,
 chronological itineraries, day completion, manually attached local photos
 and outfit-of-the-day notes, place previews, driving-route estimates, and
-shared expenses with equal or custom splits. It excludes group membership
-and suggestion approvals, reservations, and offline trip-data caching.
+shared expenses with equal or custom splits. This milestone adds completed-day
+memories and opt-in offline viewing. It excludes group membership and suggestion
+approvals, reservations, offline writes and cloud photo synchronization.
 These remain future product capabilities.
 
 ### Phase 0 --- Validate the MVP assumptions
@@ -572,8 +583,8 @@ These remain future product capabilities.
     storing real trip data.
 -   [ ] Confirm production maps, routing, and photo providers, including
     usage limits, attribution, privacy, and cost.
--   [ ] Keep offline trip-data caching deferred until its privacy and
-    retention policy is approved.
+-   [x] Record opt-in seven-day snapshot expiry and clear-on-sign-out policy.
+-   [ ] Validate that policy on the supported browsers/native devices.
 
 As the sole developer, record the outcome and pass/fail evidence for each
 gate before using real trip data or shipping the dependent functionality.
@@ -586,7 +597,11 @@ gate before using real trip data or shipping the dependent functionality.
 -   [x] Add Google sign-in and Firestore owner rules.
 -   [x] Validate trip, activity, and expense writes in Firestore Rules.
 -   [ ] Configure Firebase project values and authorized domains.
--   [ ] Run the Firestore emulator rules suite with Java installed.
+-   [x] Run the Firestore emulator rules suite with Java installed.
+
+Local evidence and remaining Phase 0/1 blockers are recorded in
+[release gates](docs/RELEASE_GATES.md). Deployment, real-account verification,
+scope approval and recovery rehearsal remain open.
 
 ### Phase 2 --- Core trip and itinerary
 
@@ -602,6 +617,10 @@ gate before using real trip data or shipping the dependent functionality.
 
 ### Phase 3 --- Collaboration
 
+Design proposal: [owner-controlled collaboration](docs/COLLABORATION.md).
+Implementation remains deferred; billing, invitations and review-policy decisions
+must be approved before changing owner-only access.
+
 -   [ ] Implement owner, contributor, and viewer roles.
 -   [ ] Allow contributors to submit suggestions.
 -   [ ] Build the owner's approval dashboard.
@@ -610,11 +629,33 @@ gate before using real trip data or shipping the dependent functionality.
 
 ### Phase 4 --- Offline Viewing
 
--   [ ] Add PWA application-shell caching.
--   [ ] Cache selected trip data in IndexedDB.
--   [ ] Implement read-only offline views.
--   [ ] Display synchronization status and timestamps.
--   [ ] Disable server-dependent actions while offline.
+-   [x] Add static PWA application-shell caching.
+-   [x] Add opt-in, account-scoped seven-day IndexedDB snapshots.
+-   [x] Implement read-only offline views and local photo viewing.
+-   [x] Display synchronization status and timestamps.
+-   [x] Guard server-dependent actions while offline without queuing writes.
+-   [ ] Complete authenticated cold-start, native-device and privacy release checks.
+
+### Secure Offline Travel Memories
+
+Completed days from active and archived trips appear in Memories with a calendar,
+activity timeline and manual photo carousel. Unmarking a day removes it; edits or
+deletions update the live memory rather than preserving an immutable archive.
+Next day advances an activity's date without replacing editable custom times.
+Recap summaries derive from recorded completed-day data, not verified visits or
+invented photo timestamps. Rewind playback is not implemented.
+
+Images are limited to 30 MiB each (five activity images plus one outfit image).
+JPEGs are compressed on-device to WebP when supported and smaller; other formats
+remain unchanged to preserve animation/transparency. Image files stay in IndexedDB;
+only reference metadata syncs. Another device may show unavailable photos. Clearing
+browser data or eviction can lose photos; trip snapshots and Firestore exports are
+not photo backups. No silent cloud-upload fallback exists. Storage failures retain
+the draft for retry rather than discarding selected images.
+
+Forms provide inline validation and persisted-result feedback. Inputs use structured
+Firestore SDK calls and encoded query parameters, not executable query strings.
+Browser-only validation/fair-use limits do not replace server authorization.
 
 ### Phase 5 --- Maps and Expenses
 
@@ -704,8 +745,8 @@ photo blobs remain on the device and are not synced. Firebase project values
 are not configured in the repository; local rules-emulator tests require
 Java, while CI is configured to run them with Java 17. The browser-local
 adapter is for development only. Complete Phase 0 and verify the rules suite
-before using real trip data. Collaboration and offline trip caching remain
-unimplemented.
+before using real trip data. Collaboration is design-only; read-only offline
+viewing and memories are implemented, with release gates tracked separately.
 
 ------------------------------------------------------------------------
 

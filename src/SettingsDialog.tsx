@@ -14,11 +14,14 @@ export default function SettingsDialog({
 }) {
   const [timeFormat, setTimeFormat] = useState(settings.timeFormat);
   const [defaultCurrencyCode, setDefaultCurrencyCode] = useState(settings.defaultCurrencyCode);
+  const [error, setError] = useState('');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onSave({ timeFormat, defaultCurrencyCode });
-    onClose();
+    try {
+      onSave({ timeFormat, defaultCurrencyCode });
+      onClose();
+    } catch { setError('Settings could not be saved on this device. Retry after checking browser storage.'); }
   }
 
   return (
@@ -45,6 +48,7 @@ export default function SettingsDialog({
           <span className="field-hint">Existing trips keep their currency.</span>
         </label>
         <div className="dialog-actions">
+          {error && <p className="form-error" role="alert">{error}</p>}
           <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
           <button className="button button-primary" type="submit"><Check size={16} /> Save settings</button>
         </div>

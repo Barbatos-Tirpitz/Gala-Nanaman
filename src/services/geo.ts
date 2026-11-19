@@ -1,6 +1,7 @@
 import { firebaseAuth } from '../firebase';
 import type { PlaceLocation } from '../types';
 import { consumeDailyUsage, type UsageKind } from './usageLimits';
+import { safeProviderUrl } from './externalUrl';
 
 export interface RoutePoint {
   latitude: number;
@@ -108,6 +109,7 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export function searchPlaces(query: string, limit: number, signal?: AbortSignal): Promise<PlaceLocation[]> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 20) return Promise.reject(new Error('Invalid search limit.'));
   const text = query.trim().slice(0, MAX_QUERY_LENGTH);
   return limitedRequest('placeSearch', `place:${limit}:${text.toLowerCase()}`, async () => {
     const data = await getJson<PhotonResponse>(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=${limit}`);
@@ -135,6 +137,9 @@ export function reversePlace(latitude: number, longitude: number, signal?: Abort
 }
 
 export function getDrivingRoute(points: RoutePoint[], signal?: AbortSignal): Promise<DrivingRoute> {
+  if (points.length < 2 || points.length > 100 || points.some((point) => !isCoordinate(point.latitude, 90) || !isCoordinate(point.longitude, 180))) {
+    return Promise.reject(new Error('Choose between two and 100 valid map points.'));
+  }
   const path = points.map(({ latitude, longitude }) => `${longitude},${latitude}`).join(';');
   return limitedRequest('route', `route:${path}`, async () => {
     const data = await getJson<OsrmResponse>(
@@ -175,7 +180,10 @@ export function findPlacePhotos(queries: string[], signal?: AbortSignal): Promis
         const photos = Object.values(data.query?.pages ?? {}).flatMap((page) => {
           const image = page.imageinfo?.[0];
           if (!image?.thumburl || !image.descriptionurl) return [];
-          return [{ title: page.title.replace(/^File:/, '').replaceAll('_', ' '), thumbnail: image.thumburl, sourceUrl: image.descriptionurl }];
+          const thumbnail = safeProviderUrl(image.thumburl, ['upload.wikimedia.org']);
+          const sourceUrl = safeProviderUrl(image.descriptionurl, ['commons.wikimedia.org']);
+          if (!thumbnail || !sourceUrl) return [];
+          return [{ title: page.title.replace(/^File:/, '').replaceAll('_', ' '), thumbnail, sourceUrl }];
         });
         if (photos.length) return { query, photos };
       } catch (error) {

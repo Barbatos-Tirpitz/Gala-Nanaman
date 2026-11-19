@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
 import { GoogleAuthProvider, onAuthStateChanged, signInWithCredential, signInWithPopup, signOut, type User } from 'firebase/auth';
 import { firebaseAuth, firebaseConfigured } from '../firebase';
+import { clearOffline } from '../offline';
 
 interface AuthContextValue {
   configured: boolean;
@@ -22,10 +23,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!firebaseAuth) return;
-    return onAuthStateChanged(firebaseAuth, (nextUser) => {
+    let previousUid: string | undefined;
+    let generation = 0;
+    return onAuthStateChanged(firebaseAuth, async (nextUser) => {
+      const current = ++generation;
+      const oldUid = previousUid;
+      previousUid = nextUser?.uid;
+      setLoading(true);
+      setUser(null);
+      let cleanupError = '';
+      if (oldUid && oldUid !== nextUser?.uid) {
+        try { await clearOffline(oldUid); }
+        catch { cleanupError = 'Local copy removal failed. Clear browser data on shared devices.'; }
+      }
+      if (current !== generation) return;
       setUser(nextUser);
       setLoading(false);
-      setError('');
+      setError(cleanupError);
     }, () => {
       setUser(null);
       setLoading(false);
@@ -56,10 +70,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signOut() {
       if (!firebaseAuth) return;
+      let cleanupFailed = false;
+      if (firebaseAuth.currentUser) {
+        try { await clearOffline(firebaseAuth.currentUser.uid); }
+        catch { cleanupFailed = true; }
+      }
       try {
         await signOut(firebaseAuth);
+        if (cleanupFailed) setError('Signed out, but local copy removal failed. Clear browser data on shared devices.');
       } catch {
-        setError('Sign-out failed. Reload the page and try again.');
+        setError('Sign-out or local-copy removal failed. Retry; clear browser data on shared devices.');
       }
     },
   }), [error, loading, user]);

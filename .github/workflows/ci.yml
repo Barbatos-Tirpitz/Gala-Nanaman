@@ -19,7 +19,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          registry-url: https://registry.npmjs.org
 
       - name: Set up Java for Firebase Emulator
         uses: actions/setup-java@v4
@@ -28,7 +29,9 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies
-        run: npm install --registry=https://registry.npmjs.org/
+        run: |
+          node scripts/check-lockfile.mjs
+          npm ci --registry=https://registry.npmjs.org/
 
       - name: Run unit tests
         run: npm test

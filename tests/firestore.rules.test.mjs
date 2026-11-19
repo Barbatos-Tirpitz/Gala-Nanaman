@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { after, before, beforeEach, test } from 'node:test';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { collection, deleteDoc, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDoc, getDocs, query, runTransaction, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore';
 
 let testEnvironment;
 
@@ -123,13 +123,17 @@ test('activity and expense writes are validated', async () => {
   await seedTrip();
   const db = testEnvironment.authenticatedContext('user-a').firestore();
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-time'), activity({ endTime: '07:00' })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'outside-trip'), activity({ date: '2027-05-30' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-place'), activity({ location: { label: 'Nowhere', latitude: 120, longitude: 0 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'extra-field'), activity({ ownerId: 'user-b' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'too-many-photos'), activity({ photos: Array.from({ length: 6 }, (_, index) => ({ id: `photo-${index}`, name: 'photo.jpg', mimeType: 'image/jpeg', size: 1024 })) })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-photo-entry'), activity({ photos: [{ id: 'photo-a', name: 'photo.jpg', mimeType: 'text/plain', size: 1024 }] })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-outfit-flag'), activity({ outfitOfDay: 'yes' })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'bad-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'text/plain', size: 1024 } })));
-  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'large-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 5242881 } })));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'max-photo'), activity({ photos: [{ id: 'photo-max', name: 'photo.jpg', mimeType: 'image/jpeg', size: 31457280 }] })));
+  await assertSucceeds(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'max-outfit'), activity({ outfitPhoto: { id: 'photo-max', name: 'outfit.jpg', mimeType: 'image/jpeg', size: 31457280 } })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'large-photo'), activity({ photos: [{ id: 'photo-max', name: 'photo.jpg', mimeType: 'image/jpeg', size: 31457281 }] })));
+  await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'activities', 'large-outfit-photo'), activity({ outfitPhoto: { id: 'photo-outfit', name: 'jacket.jpg', mimeType: 'image/jpeg', size: 31457281 } })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'zero'), expense({ amountMinor: 0 })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'no-splits'), expense({ splits: [] })));
   await assertFails(setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'missing-activity'), expense({ activityId: 'missing' })));
@@ -139,4 +143,21 @@ test('records cannot be added to a trip that does not exist', async () => {
   const db = testEnvironment.authenticatedContext('user-a').firestore();
   await assertFails(setDoc(doc(db, 'trips', 'missing', 'activities', 'activity-a'), activity()));
   await assertFails(setDoc(doc(db, 'trips', 'missing', 'expenses', 'expense-a'), expense()));
+});
+
+test('stable IDs avoid retry duplicates and transactions retry concurrent changes', async () => {
+  await seedTrip();
+  const db = testEnvironment.authenticatedContext('user-a').firestore();
+  const activityRef = doc(db, 'trips', 'trip-a', 'activities', 'stable-id');
+  const save = () => runTransaction(db, async (transaction) => { transaction.set(activityRef, activity()); });
+  await save();
+  await save();
+  assert.equal((await getDocs(collection(db, 'trips', 'trip-a', 'activities'))).size, 1);
+  const tripRef = doc(db, 'trips', 'trip-a');
+  const increment = () => runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(tripRef);
+    transaction.update(tripRef, { budgetMinor: snapshot.data().budgetMinor + 1, updatedAt: serverTimestamp() });
+  });
+  await Promise.all([increment(), increment()]);
+  assert.equal((await getDoc(tripRef)).data().budgetMinor, 120002);
 });
