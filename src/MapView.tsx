@@ -6,6 +6,8 @@ import { DailyLimitError, findPlacePhotos, getDrivingRoute, searchPlaces, type P
 import type { Activity, PlaceLocation, Trip } from './types';
 import { formatTime, type TimeFormat } from './settings';
 import 'leaflet/dist/leaflet.css';
+import { MAP_TILES } from './services/mapProviders';
+import LocationActions from './LocationActions';
 
 interface MapViewProps {
   trip: Trip;
@@ -162,8 +164,8 @@ export default function RouteMap({ trip, activities, timeFormat }: MapViewProps)
         {mapPoints.length ? (
           <MapContainer key={trip.id} center={mapCenter} zoom={12} scrollWheelZoom className="leaflet-map">
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution={MAP_TILES.attribution}
+              url={MAP_TILES.url}
             />
             <MapBounds points={coordinates} />
             {routeCoordinates.length > 1 && <Polyline positions={routeCoordinates} pathOptions={{ color: '#d76d50', weight: 5, opacity: 0.88, lineCap: 'round', lineJoin: 'round' }} />}
@@ -192,6 +194,7 @@ export default function RouteMap({ trip, activities, timeFormat }: MapViewProps)
           {selectedActivity && <span className="place-time"><Clock3 size={13} /> {formatTime(selectedActivity.startTime, timeFormat)}</span>}
         </div>
         <p className="place-address"><MapPin size={14} /> {selectedActivity?.location?.label ?? destinationLocation?.label ?? trip.destination}</p>
+        <LocationActions place={selectedActivity?.location ?? destinationLocation ?? { label: trip.destination }} />
 
         <div className="photo-carousel" aria-label="Place photo carousel" aria-busy={photoState === 'loading'}>
           {activePhoto ? (
