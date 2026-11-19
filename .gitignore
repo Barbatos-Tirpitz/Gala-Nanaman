@@ -12,6 +12,9 @@ ui-debug.log
 .DS_Store
 Thumbs.db
 .env*
-!.env.example
-android/app/google-services.json
-ios/App/GoogleService-Info.plist
+.env.local
+.env.development.local
+.env.production.local
+
+#md
+*.md
