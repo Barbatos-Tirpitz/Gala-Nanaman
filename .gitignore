@@ -1,23 +1,20 @@
+MVP_SCOPE.md
+DECISIONS.md
 node_modules/
 dist/
-
-# Build and test caches
 coverage/
 .vite/
-*.tsbuildinfo
-
-# Firebase local data and logs
 .firebase/
+*.tsbuildinfo
 firebase-debug.log
 firestore-debug.log
 ui-debug.log
-
-# OS-generated files
 .DS_Store
 Thumbs.db
-
-#Env
 .env*
 .env.local
 .env.development.local
 .env.production.local
+
+#md
+*.md
