@@ -4,7 +4,7 @@ Recorded 2026-11-19. Local implementation is not production approval.
 
 ## Local Evidence
 
-- 21 unit tests pass: calendar, recap, runtime validation, image limit, URL allowlist,
+- 40 unit tests pass: calendar, recap, runtime validation, image limit, URL allowlist,
   IndexedDB opt-in/expiry/account isolation and repository read-only behavior.
 - Production TypeScript/Vite build generates a versioned static app-shell worker.
 - Nine Firestore emulator tests pass owner isolation, schemas, activity date bounds,
@@ -13,7 +13,7 @@ Recorded 2026-11-19. Local implementation is not production approval.
   response-loss rehearsal against the actual application.
 - Mobile 320px and desktop workflow checks run in installed Edge. Chromium download
   is blocked by the local certificate chain; TLS verification was not disabled.
-  Nine browser checks pass: workflow cases use the development-only local repository,
+  Thirteen browser checks pass: workflow cases use the development-only local repository,
   not real Firebase. They cover inert text rendering, date/time preservation,
   field feedback, failed saves, disconnected drafts, carousel navigation, actual
   JPEG compression/metadata and quota failure. The separate production-shell test
@@ -24,6 +24,37 @@ Recorded 2026-11-19. Local implementation is not production approval.
   offline viewing, no upload requests, oversized-file rejection and photo-count
   rejection. Image screenshots are in `test-results/images-390.png` and
   `test-results/images-1440.png` after running the browser suite.
+
+## Map Cache and Google Maps Milestone
+
+Implemented: shared canonical OSM tile configuration, browser-managed HTTP tiles,
+account-separated opt-in lookup storage, bounded memory/IndexedDB caches, HTTP
+cache directive handling, TTL and seven-day maximum retention, 200-entry / 5 MiB
+budget, explicit clear controls, quota-on-provider-fetch accounting, throttle
+backoff and supported cross-tab Web Locks. Sign-out/offline-consent withdrawal
+also clear query history. Generation tokens prevent old entries/in-flight results
+from being reused after clearing, including delayed cross-tab notifications.
+
+Photon search/reverse results are persistent only with a restored UID, existing
+offline-copy consent and separate map-history consent. OSRM route and Wikimedia
+metadata results remain session-memory-only pending current provider terms review.
+Tile/remote-image HTTP caches are browser-managed and cannot be guaranteed erased
+by sign-out. No service-worker tile/API cache or offline-area download was added.
+
+Google Maps search and destination-only directions links are available from
+itinerary, map details and Memories without a Maps API key/SDK. Tests verify fixed
+HTTPS URLs, encoded inputs, no unsolicited Google Maps request and mobile/desktop
+rendering. Four map browser cases use intercepted provider/tile fixtures and a
+test-only mocked identity; no automated panning against public OSM was performed.
+They prove explicit opt-in, reuse after reload without another fetch/quota count,
+clear/revoke behavior, shared requests across supported tabs and clear-during-fetch
+invalidation. Screenshots: `test-results/leaflet-cache-390.png` and
+`test-results/leaflet-cache-1440.png`.
+
+Still unverified: real-account/device lifecycle, native universal-link/system-
+browser launching, native OSM request identification, and human verification of
+actual provider HTTP revalidation. Those remain release checks; fixture tests
+do not establish provider availability, live traffic accuracy or native support.
 
 Reproduce: `npm test`, `npm run build`, `npm run test:rules`,
 `npm run test:browser` (build first for the production-shell case). Java is needed

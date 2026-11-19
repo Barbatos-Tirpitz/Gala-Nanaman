@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Trip } from './types';
 import { tripSchema } from './validation';
+import { clearMapLookups } from './services/mapCache';
 
 export const SNAPSHOT_TTL = 7 * 24 * 60 * 60 * 1000;
 const DATABASE = 'gala-nanaman-offline';
@@ -39,8 +40,13 @@ export function allowOffline(uid: string): void {
 }
 
 export async function clearOffline(uid: string): Promise<void> {
-  localStorage.removeItem(CONSENT + uid);
-  await transaction('readwrite', (store) => store.delete(uid));
+  let failed = false;
+  try { localStorage.removeItem(CONSENT + uid); } catch { failed = true; }
+  const results = await Promise.allSettled([
+    transaction('readwrite', (store) => store.delete(uid)),
+    clearMapLookups(uid, true),
+  ]);
+  if (failed || results.some((result) => result.status === 'rejected')) throw new Error('Local trip or map data could not be fully cleared.');
 }
 
 export async function writeSnapshot(uid: string, trips: Trip[], now = Date.now()): Promise<void> {

@@ -67,8 +67,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .memory-stop { border-left: 2px solid var(--line); padding: 0 0 20px 16px; overflow-wrap: anywhere; }
 .memory-stop h4 { margin: 6px 0; }
 .memory-time { font-size: 12px; }
+.location-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-block: 6px 10px; }
+.location-actions a { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; color: #345b44; font-size: 12px; text-underline-offset: 3px; overflow-wrap: anywhere; }
+.location-actions svg { flex-shrink: 0; }
+.location-actions a:focus-visible { outline: 2px solid #b94f38; outline-offset: 3px; }
 .offline-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 8px 18px; border-bottom: 1px solid var(--line); font-size: 12px; }
 .offline-toggle { display: flex; align-items: center; gap: 6px; }
+.map-cache-settings { border-top: 1px solid var(--line); padding-top: 14px; }
+.map-cache-settings h3 { margin-top: 0; font-size: 16px; }
+.map-cache-settings p { font-size: 12px; line-height: 1.5; }
 .form-fields { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 16px; }
 .app-toast { position: fixed; bottom: 20px; right: 20px; z-index: 3000; display: flex; gap: 16px; align-items: center; max-width: min(440px, calc(100vw - 40px)); padding: 12px 16px; border-radius: 6px; background: #e8f0e9; color: #233b2d; border: 1px solid #6c8374; box-shadow: 0 4px 16px #0002; overflow-wrap: anywhere; }
 .toast-error { background: #fff0ec; color: #782f21; border-color: #b94f38; }
