@@ -20,7 +20,8 @@ interface ExpenseDraft {
 interface ExpensesViewProps {
   trip: Trip;
   initialActivityId?: string;
-  onSave: (expense: Expense, id?: string) => void;
+  readOnly?: boolean;
+  onSave: (expense: Expense, id?: string) => Promise<void>;
   onDelete: (expense: Expense) => void;
 }
 
@@ -45,6 +46,7 @@ function ExpenseDialog({
   activities,
   initialActivityId,
   expense,
+  readOnly,
   onClose,
   onSave,
 }: {
@@ -52,8 +54,9 @@ function ExpenseDialog({
   activities: Trip['activities'];
   initialActivityId?: string;
   expense?: Expense;
+  readOnly: boolean;
   onClose: () => void;
-  onSave: (draft: ExpenseDraft, id?: string) => void;
+  onSave: (draft: ExpenseDraft, id?: string) => Promise<void>;
 }) {
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>(() => {
     if (!expense || expense.splits.length < 2) return 'equal';
@@ -66,6 +69,8 @@ function ExpenseDialog({
   const [paidBy, setPaidBy] = useState(expense?.paidBy ?? '');
   const [activityId, setActivityId] = useState(expense?.activityId ?? initialActivityId ?? '');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [newId] = useState(createId);
   const amountMinor = parseAmountToMinorUnits(amount, currencyCode);
   const participants = rows.map((row) => row.person.trim()).filter(Boolean);
   const selectedPayer = participants.includes(paidBy) ? paidBy : participants[0] ?? '';
@@ -77,8 +82,9 @@ function ExpenseDialog({
     setRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (readOnly || !navigator.onLine || saving) return;
     const formData = new FormData(event.currentTarget);
     const title = String(formData.get('title')).trim();
     const date = String(formData.get('date'));
@@ -114,12 +120,18 @@ function ExpenseDialog({
       }
     }
 
-    onSave({ title, date, amountMinor: total, paidBy: selectedPayer, splits, ...(linkedActivityId ? { activityId: linkedActivityId } : {}) }, expense?.id);
+    setSaving(true);
+    try {
+      await onSave({ title, date, amountMinor: total, paidBy: selectedPayer, splits, ...(linkedActivityId ? { activityId: linkedActivityId } : {}) }, expense?.id ?? newId);
+    } catch { setError('Expense could not be saved. Your draft is still here to retry.'); }
+    finally { setSaving(false); }
   }
 
   return (
-    <ModalShell title={expense ? 'Edit expense' : 'Add expense'} onClose={onClose}>
+    <ModalShell title={expense ? 'Edit expense' : 'Add expense'} onClose={() => { if (!saving) onClose(); }}>
         <form className="dialog-form" onSubmit={handleSubmit}>
+          {readOnly && <p role="status">Read-only while disconnected. Your draft is kept here.</p>}
+          <fieldset className="form-fields" disabled={readOnly || saving}>
           <label>
             Expense name
             <input name="title" defaultValue={expense?.title} required maxLength={80} autoFocus placeholder="Dinner, train tickets…" />
@@ -177,9 +189,10 @@ function ExpenseDialog({
           </label>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="dialog-actions">
-            <button className="button button-quiet" type="button" onClick={onClose}>Cancel</button>
-            <button className="button button-primary" type="submit"><Check size={16} /> Save expense</button>
+            <button className="button button-quiet" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+            <button className="button button-primary" type="submit" disabled={saving}><Check size={16} /> {saving ? 'Saving...' : 'Save expense'}</button>
           </div>
+          </fieldset>
         </form>
     </ModalShell>
   );
@@ -189,7 +202,7 @@ function settlementText(settlement: Settlement, currencyCode: string): string {
   return `${settlement.from} pays ${settlement.to} ${formatAmount(settlement.amountMinor, currencyCode)}`;
 }
 
-export default function ExpensesView({ trip, initialActivityId, onSave, onDelete }: ExpensesViewProps) {
+export default function ExpensesView({ trip, readOnly = false, initialActivityId, onSave, onDelete }: ExpensesViewProps) {
   const [dialogExpense, setDialogExpense] = useState<Expense | null | undefined>(undefined);
   const [newExpenseActivityId, setNewExpenseActivityId] = useState(initialActivityId);
   const expenses = trip.expenses ?? [];
@@ -204,8 +217,8 @@ export default function ExpensesView({ trip, initialActivityId, onSave, onDelete
     setDialogExpense(null);
   }
 
-  function saveExpense(draft: ExpenseDraft, id?: string) {
-    onSave({ ...draft, id: id ?? createId() }, id);
+  async function saveExpense(draft: ExpenseDraft, id?: string) {
+    await onSave({ ...draft, id: id ?? createId() }, id);
     setDialogExpense(undefined);
     setNewExpenseActivityId(undefined);
   }
@@ -218,7 +231,7 @@ export default function ExpensesView({ trip, initialActivityId, onSave, onDelete
           <h1>Expenses</h1>
           <p>Track shared spending for {trip.name}.</p>
         </div>
-        <button className="button button-primary" onClick={() => openNewExpense()}><Plus size={17} /> Add expense</button>
+        <button className="button button-primary" disabled={readOnly} onClick={() => openNewExpense()}><Plus size={17} /> Add expense</button>
       </section>
 
       <section className="finance-summary" aria-label="Budget summary">
@@ -250,14 +263,14 @@ export default function ExpensesView({ trip, initialActivityId, onSave, onDelete
                   <div className="expense-copy"><strong>{expense.title}</strong><span>{expense.date} · Paid by {expense.paidBy}</span>{expense.activityId && <small>Itinerary: {trip.activities.find((activity) => activity.id === expense.activityId)?.title ?? 'Activity'}</small>}<small>Split between {expense.splits.map((split) => split.person).join(', ')}</small></div>
                   <strong className="expense-amount">{formatAmount(expense.amountMinor, trip.currencyCode)}</strong>
                   <div className="expense-actions">
-                    <button className="icon-button" aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => setDialogExpense(expense)}><Pencil size={15} /></button>
-                    <button className="icon-button danger-hover" aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDelete(expense)}><Trash2 size={15} /></button>
+                    <button className="icon-button" disabled={readOnly} aria-label={`Edit ${expense.title}`} title="Edit expense" onClick={() => setDialogExpense(expense)}><Pencil size={15} /></button>
+                    <button className="icon-button danger-hover" disabled={readOnly} aria-label={`Delete ${expense.title}`} title="Delete expense" onClick={() => onDelete(expense)}><Trash2 size={15} /></button>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="expense-empty"><span><Receipt size={20} /></span><strong>No expenses recorded</strong><p>Add a shared cost to see spending and balances here.</p><button className="button button-outline" onClick={() => openNewExpense()}><Plus size={15} /> Add first expense</button></div>
+            <div className="expense-empty"><span><Receipt size={20} /></span><strong>No expenses recorded</strong><p>Add a shared cost to see spending and balances here.</p><button className="button button-outline" disabled={readOnly} onClick={() => openNewExpense()}><Plus size={15} /> Add first expense</button></div>
           )}
         </section>
 
@@ -286,7 +299,7 @@ export default function ExpensesView({ trip, initialActivityId, onSave, onDelete
         </aside>
       </div>
 
-      {dialogExpense !== undefined && <ExpenseDialog key={dialogExpense?.id ?? 'new-expense'} currencyCode={trip.currencyCode} activities={trip.activities} initialActivityId={newExpenseActivityId} expense={dialogExpense ?? undefined} onClose={() => { setDialogExpense(undefined); setNewExpenseActivityId(undefined); }} onSave={saveExpense} />}
+      {dialogExpense !== undefined && <ExpenseDialog key={dialogExpense?.id ?? 'new-expense'} readOnly={readOnly} currencyCode={trip.currencyCode} activities={trip.activities} initialActivityId={newExpenseActivityId} expense={dialogExpense ?? undefined} onClose={() => { setDialogExpense(undefined); setNewExpenseActivityId(undefined); }} onSave={saveExpense} />}
     </div>
   );
 }
