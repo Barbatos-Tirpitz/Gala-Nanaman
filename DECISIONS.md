@@ -91,6 +91,35 @@ separate until removed or browser data is cleared. No photo sync or write queue.
 
 **Decision due:** Revisit before upgrading to Blaze or adopting a keyed or paid map provider.
 
+## D-006: Local Map Lookups and External Navigation
+
+**Status:** Accepted milestone direction; native/provider release checks pending
+
+Keep Leaflet and canonical OSM tiles with normal browser HTTP caching. Do not
+prefetch tiles or offer offline-area downloads with the standard OSM provider.
+Keep the app-shell service worker static-only. Add account-scoped, explicitly
+opted-in map-query storage on top of existing offline-copy consent. Queries and
+coordinates are travel history, so old offline consent alone is insufficient.
+
+Freshness defaults are search 24h, reverse 7d, route 6h and photo metadata 24h,
+subject to provider cache directives. Persistent lookup retention is at most
+seven days from fetching, bounded to 200 entries / 5 MiB; hits do not extend it.
+Photon results are eligible under its reasonable-use demo policy. OSRM and
+Wikimedia remain memory-only until current operator/persistence terms are
+confirmed. Public availability is best-effort, not a production guarantee.
+
+Sign-out, account change, detected denial and offline/map consent withdrawal
+clear app-managed results. Explicit clearing invalidates in-flight work and
+other tabs. Browser-managed HTTP tile/image caches cannot be selectively
+guaranteed erased by the app. No cloud sync, credentials or personal photos are
+stored in the lookup cache. Storage errors degrade to memory with feedback.
+
+Google Maps search/directions are fixed-host HTTPS URLs built from validated
+coordinates or bounded search labels. Only a deliberate external action opens
+Google. No API key, SDK or Maps Platform API charge is introduced. Device
+universal-link behavior and supported-native identification for OSM remain
+release checks, not locally proven guarantees.
+
 ## Phase 0 Completion
 
 Phase 0 is complete only when:
