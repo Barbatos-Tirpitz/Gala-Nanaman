@@ -3,6 +3,8 @@ dist/
 
 # Build and test caches
 coverage/
+test-results/
+playwright-report/
 .vite/
 *.tsbuildinfo
 
@@ -24,3 +26,7 @@ Thumbs.db
 
 #md
 *.md
+!DECISIONS.md
+!MVP_SCOPE.md
+!docs/COLLABORATION.md
+!docs/RELEASE_GATES.md

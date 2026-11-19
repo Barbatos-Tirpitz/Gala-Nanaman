@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type FormEvent } from 'react';
 import {
   ArrowRight,
   Archive,
@@ -26,6 +26,8 @@ import { tripRepository } from './repositories/TripRepository';
 import RouteMap from './MapView';
 import MapPicker from './MapPicker';
 import ActivityPhotoGallery from './ActivityPhotoGallery';
+import MemoriesView from './MemoriesView';
+import { photoValidationError } from './photoProcessing';
 import ModalShell from './ModalShell';
 import ExpensesView from './ExpensesView';
 import { DailyLimitError, reversePlace, searchPlaces } from './services/geo';
@@ -40,14 +42,18 @@ import { useAuth } from './auth/AuthContext';
 import SignInScreen from './auth/SignInScreen';
 import { firebaseAuth, firebaseConfigured, firestore } from './firebase';
 import { FirestoreTripRepository } from './repositories/FirestoreTripRepository';
-import type { TripRepository } from './repositories/TripRepository';
+import { OfflineTripRepository } from './repositories/OfflineTripRepository';
+import { allowOffline, clearOffline, offlineEnabled, readSnapshot, SNAPSHOT_TTL } from './offline';
+import { addCalendarDay, isCalendarDate } from './services/calendar';
+import { activitySchema, tripSchema } from './validation';
+import { useFormFeedback } from './useFormFeedback';
 
 type DialogState =
   | { kind: 'trip'; trip?: Trip }
   | { kind: 'activity'; trip: Trip; activity?: Activity }
   | null;
 
-type AppView = 'trips' | 'itinerary' | 'expenses';
+type AppView = 'trips' | 'itinerary' | 'expenses' | 'memories';
 
 const categoryIcons: Record<ActivityCategory, string> = {
   Explore: 'E',
@@ -70,12 +76,6 @@ function tripLength(start: string, end: string): number {
   const startDay = Date.parse(`${start}T00:00:00Z`);
   const endDay = Date.parse(`${end}T00:00:00Z`);
   return Math.max(1, Math.round((endDay - startDay) / 86_400_000) + 1);
-}
-
-function addCalendarDay(date: string): string {
-  const next = new Date(`${date}T00:00:00Z`);
-  next.setUTCDate(next.getUTCDate() + 1);
-  return next.toISOString().slice(0, 10);
 }
 
 function nextActivityDefaults(trip: Trip): { date: string; startTime: string; endTime: string } {
@@ -117,15 +117,19 @@ interface CurrencyConversionPreview {
 function TripDialog({
   trip,
   defaultCurrencyCode,
+  readOnly = false,
   onClose,
   onSave,
 }: {
   trip?: Trip;
   defaultCurrencyCode: string;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (values: TripDraft, id?: string, convertedExpenses?: Expense[]) => Promise<void>;
 }) {
   const [budgetError, setBudgetError] = useState('');
+  const feedback = useFormFeedback();
+  const [draftId] = useState(createId);
   const [selectedCurrencyCode, setSelectedCurrencyCode] = useState(trip?.currencyCode ?? defaultCurrencyCode);
   const [conversionPreview, setConversionPreview] = useState<CurrencyConversionPreview>();
   const [conversionError, setConversionError] = useState('');
@@ -137,7 +141,7 @@ function TripDialog({
     setIsSaving(true);
     setSaveError('');
     try {
-      await onSave(values, trip?.id, convertedExpenses);
+      await onSave(values, trip?.id ?? draftId, convertedExpenses);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not save this trip.');
     } finally {
@@ -147,7 +151,7 @@ function TripDialog({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isLoadingRate || isSaving) return;
+    if (readOnly || !navigator.onLine || isLoadingRate || isSaving) return;
     const formData = new FormData(event.currentTarget);
     const startDate = String(formData.get('startDate'));
     const endDate = String(formData.get('endDate'));
@@ -156,7 +160,11 @@ function TripDialog({
     const budgetCurrencyCode = trip?.currencyCode ?? currencyCode;
     const budgetMinor = budget ? parseAmountToMinorUnits(budget, budgetCurrencyCode) : 0;
 
-    if (endDate < startDate) return;
+    if (!isCalendarDate(startDate) || !isCalendarDate(endDate) || endDate < startDate) {
+      setSaveError('Choose valid dates with the end on or after the start.');
+      event.currentTarget.elements.namedItem('endDate') && (event.currentTarget.elements.namedItem('endDate') as HTMLInputElement).focus();
+      return;
+    }
     if (budgetMinor === undefined) {
       setBudgetError(`Enter a valid ${budgetCurrencyCode} amount with up to ${currencyFractionDigits(budgetCurrencyCode)} decimal places.`);
       return;
@@ -172,6 +180,7 @@ function TripDialog({
       currencyCode,
       budgetMinor,
     };
+    if (!feedback.validate(event.currentTarget, tripSchema.safeParse({ ...values, id: trip?.id ?? draftId, activities: [], expenses: [] }))) return;
 
     if (trip && currencyCode !== trip.currencyCode && (budgetMinor > 0 || trip.expenses.length > 0)) {
       setIsLoadingRate(true);
@@ -209,14 +218,18 @@ function TripDialog({
   return (
     <Modal title={trip ? 'Edit trip details' : 'Create a trip'} onClose={closeDialog}>
       <form className="dialog-form" onSubmit={handleSubmit}>
+        {readOnly && <p role="status">Read-only while disconnected. Your draft is kept here.</p>}
+        <fieldset className="form-fields" disabled={readOnly || isSaving}>
         <div className="trip-editor-fields" hidden={Boolean(conversionPreview)}>
         <label>
           Trip name
-          <input name="name" defaultValue={trip?.name} required maxLength={70} autoFocus />
+          <input name="name" defaultValue={trip?.name} required maxLength={70} autoFocus {...feedback.field('name')} />
+          {feedback.error('name')}
         </label>
         <label>
           Primary destination
-          <input name="destination" defaultValue={trip?.destination} required maxLength={80} placeholder="City or region" />
+          <input name="destination" defaultValue={trip?.destination} required maxLength={80} placeholder="City or region" {...feedback.field('destination')} />
+          {feedback.error('destination')}
         </label>
         <div className="field-row">
           <label>
@@ -230,7 +243,8 @@ function TripDialog({
         </div>
         <label>
           Trip timezone
-          <input name="timeZone" defaultValue={trip?.timeZone ?? 'America/New_York'} required maxLength={64} placeholder="America/New_York" />
+          <input name="timeZone" defaultValue={trip?.timeZone ?? 'America/New_York'} required maxLength={64} placeholder="America/New_York" {...feedback.field('timeZone')} />
+          {feedback.error('timeZone')}
           <span className="field-hint">Use an IANA timezone, such as Asia/Tokyo.</span>
         </label>
         <div className="field-row">
@@ -284,6 +298,7 @@ function TripDialog({
             </div>
           </section>
         )}
+        </fieldset>
       </form>
     </Modal>
   );
@@ -292,19 +307,24 @@ function TripDialog({
 function ActivityDialog({
   trip,
   activity,
+  readOnly = false,
   onClose,
   onSave,
 }: {
   trip: Trip;
   activity?: Activity;
+  readOnly?: boolean;
   onClose: () => void;
   onSave: (values: Omit<Activity, 'id'>, id?: string, photosDiscarded?: boolean) => Promise<void>;
 }) {
   const [placeQuery, setPlaceQuery] = useState(activity?.location?.label ?? '');
+  const feedback = useFormFeedback();
+  const [draftId] = useState(createId);
   const [selectedLocation, setSelectedLocation] = useState<PlaceLocation | undefined>(activity?.location);
   const [placeResults, setPlaceResults] = useState<PlaceLocation[]>([]);
   const [placeSearchState, setPlaceSearchState] = useState<'idle' | 'loading' | 'error' | 'limit'>('idle');
   const defaults = nextActivityDefaults(trip);
+  const [activityDate, setActivityDate] = useState(activity?.date ?? defaults.date);
   const [timeError, setTimeError] = useState('');
   const [mapPickerOpen, setMapPickerOpen] = useState(false);
   const [mapPickerCenter, setMapPickerCenter] = useState<PlaceLocation | undefined>(activity?.location ?? trip.activities.find((item) => item.location)?.location);
@@ -395,8 +415,9 @@ function ActivityDialog({
       setPhotoError('You can attach up to five photos to an activity.');
       return;
     }
-    if (incoming.some((file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024)) {
-      setPhotoError('Choose image files no larger than 5 MB each.');
+    const invalid = incoming.map(photoValidationError).find(Boolean);
+    if (invalid) {
+      setPhotoError(invalid);
       return;
     }
 
@@ -411,8 +432,9 @@ function ActivityDialog({
       setPhotoError('Choose one outfit photo.');
       return;
     }
-    if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
-      setPhotoError('Choose an image no larger than 5 MB.');
+    const invalid = photoValidationError(file);
+    if (invalid) {
+      setPhotoError(invalid);
       return;
     }
 
@@ -441,29 +463,22 @@ function ActivityDialog({
   async function saveSelectedPhotos(): Promise<{ photos: LocalPhotoRef[]; outfitPhoto?: LocalPhotoRef; created: LocalPhotoRef[]; failed: boolean }> {
     const savedPhotos: LocalPhotoRef[] = [];
     const created: LocalPhotoRef[] = [];
-    let failed = Boolean(photoError);
-
-    for (const file of pendingPhotoFiles) {
-      try {
+    try {
+      for (const file of pendingPhotoFiles) {
         const saved = await saveLocalPhoto(file);
         savedPhotos.push(saved);
         created.push(saved);
-      } catch {
-        failed = true;
       }
-    }
-
-    let savedOutfitPhoto = outfitPhoto;
-    if (pendingOutfitPhotoFile) {
-      try {
+      let savedOutfitPhoto = outfitPhoto;
+      if (pendingOutfitPhotoFile) {
         savedOutfitPhoto = await saveLocalPhoto(pendingOutfitPhotoFile);
         created.push(savedOutfitPhoto);
-      } catch {
-        failed = true;
       }
+      return { photos: [...activityPhotos, ...savedPhotos], outfitPhoto: savedOutfitPhoto, created, failed: false };
+    } catch {
+      await Promise.all(created.map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
+      throw new Error('Photos could not be saved on this device. Free some storage and retry, or remove the selected photos.');
     }
-
-    return { photos: [...activityPhotos, ...savedPhotos], outfitPhoto: savedOutfitPhoto, created, failed };
   }
 
   async function saveActivityForm(values: Omit<Activity, 'id'>, id: string | undefined, photosDiscarded: boolean) {
@@ -472,10 +487,14 @@ function ActivityDialog({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (isSaving || isSavingPhotos) return;
+    if (readOnly || !navigator.onLine || isSaving || isSavingPhotos) return;
     const formData = new FormData(event.currentTarget);
     const startTime = String(formData.get('startTime'));
     const endTime = String(formData.get('endTime'));
+    if (!feedback.validate(event.currentTarget, activitySchema.safeParse({
+      id: activity?.id ?? draftId, title: String(formData.get('title')).trim(), date: activityDate,
+      startTime, endTime, category: String(formData.get('category')), notes: String(formData.get('notes')).trim(),
+    }))) return;
     if (endTime <= startTime) {
       setTimeError('End time must be later than start time. For an overnight stop, add it on the next date.');
       return;
@@ -489,7 +508,9 @@ function ActivityDialog({
     try {
       savedPhotoData = await saveSelectedPhotos();
     } catch {
-      savedPhotoData = { photos: activityPhotos, outfitPhoto, created: [], failed: true };
+      setSaveError('Photos could not be saved on this device. Free storage and retry, or remove the selected photos.');
+      setIsSaving(false);
+      return;
     } finally {
       setIsSavingPhotos(false);
     }
@@ -509,7 +530,7 @@ function ActivityDialog({
           photos: savedPhotoData.photos,
           ...(selectedLocation ? { location: selectedLocation } : {}),
         },
-        activity?.id,
+        activity?.id ?? draftId,
         savedPhotoData.failed,
       );
     } catch (error) {
@@ -523,9 +544,12 @@ function ActivityDialog({
   return (
     <Modal title={activity ? 'Edit activity' : 'Add to the itinerary'} onClose={closeActivityDialog}>
       <form className="dialog-form" onSubmit={handleSubmit}>
+        {readOnly && <p role="status">Read-only while disconnected. Your draft is kept here.</p>}
+        <fieldset className="form-fields" disabled={readOnly || isSaving}>
         <label>
           Activity
-          <input name="title" defaultValue={activity?.title} required maxLength={90} autoFocus placeholder="What are you planning?" />
+          <input name="title" defaultValue={activity?.title} required maxLength={90} autoFocus placeholder="What are you planning?" {...feedback.field('title')} />
+          {feedback.error('title')}
         </label>
         <label>
           Place <span className="optional-label">Optional</span>
@@ -569,7 +593,9 @@ function ActivityDialog({
         <div className="field-row">
           <label>
             Date
-            <input name="date" type="date" min={trip.startDate} max={trip.endDate} defaultValue={activity?.date ?? defaults.date} required />
+            <input name="date" type="date" min={trip.startDate} max={trip.endDate} value={activityDate} onChange={(event) => setActivityDate(event.target.value)} required />
+            <button type="button" className="button button-outline" disabled={!isCalendarDate(activityDate) || activityDate >= trip.endDate} onClick={() => setActivityDate(addCalendarDay(activityDate))}><ArrowRight size={15} /> Next day</button>
+            {activityDate >= trip.endDate && <span className="field-hint">Last day of this trip.</span>}
           </label>
           <label>
             Type
@@ -584,14 +610,15 @@ function ActivityDialog({
         <div className="field-row">
           <label>
             Starts
-            <input name="startTime" type="time" defaultValue={activity?.startTime ?? defaults.startTime} required onChange={() => setTimeError('')} />
+            <input name="startTime" type="time" defaultValue={activity?.startTime ?? defaults.startTime} required aria-invalid={Boolean(timeError)} aria-describedby={timeError ? 'activity-time-error' : undefined} onChange={() => setTimeError('')} />
           </label>
           <label>
             Ends
-            <input name="endTime" type="time" defaultValue={activity?.endTime ?? defaults.endTime} required onChange={() => setTimeError('')} />
+            <input name="endTime" type="time" defaultValue={activity?.endTime ?? defaults.endTime} required onChange={() => setTimeError('')} {...feedback.field('endTime')} />
+            {feedback.error('endTime')}
           </label>
         </div>
-        {timeError && <p className="form-error" role="alert">{timeError}</p>}
+        {timeError && <p id="activity-time-error" className="form-error" role="alert">{timeError}</p>}
         <label>
           Notes <span className="optional-label">Optional</span>
           <textarea name="notes" defaultValue={activity?.notes} rows={3} maxLength={400} placeholder="Reservations, reminders, or useful details" />
@@ -614,7 +641,7 @@ function ActivityDialog({
           </>
         )}
         <label>
-          Photos <span className="optional-label">Optional · saved on this device only</span>
+          Photos <span className="optional-label">Optional · this device only · 30 MiB per photo</span>
           <input
             type="file"
             accept="image/*"
@@ -634,6 +661,7 @@ function ActivityDialog({
           <button className="button button-quiet" type="button" disabled={isSaving || isSavingPhotos} onClick={closeActivityDialog}>Cancel</button>
           <button className="button button-primary" type="submit" disabled={isSaving || isSavingPhotos}><Check size={16} /> {isSavingPhotos ? 'Saving photos…' : isSaving ? 'Saving activity…' : 'Save activity'}</button>
         </div>
+        </fieldset>
       </form>
     </Modal>
   );
@@ -653,10 +681,16 @@ function Modal({
 
 function AppWorkspace() {
   const auth = useAuth();
-  const repository = useMemo<TripRepository>(() => {
-    if (firebaseAuth && firestore) return new FirestoreTripRepository(firestore, firebaseAuth);
-    return tripRepository;
-  }, []);
+  const repository = useMemo(() => new OfflineTripRepository(
+    firebaseAuth && firestore ? new FirestoreTripRepository(firestore, firebaseAuth) : tripRepository,
+    auth.user?.uid,
+  ), [auth.user?.uid]);
+  const access = useSyncExternalStore(repository.subscribe, repository.getStatus);
+  const readOnly = access.mode !== 'online';
+  const [offlineConsent, setOfflineConsent] = useState(() => auth.user ? offlineEnabled(auth.user.uid) : false);
+  const [offlineBusy, setOfflineBusy] = useState(false);
+  const [toast, setToast] = useState('');
+  const [toastError, setToastError] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState('');
   const [currentView, setCurrentView] = useState<AppView>('trips');
@@ -675,6 +709,69 @@ function AppWorkspace() {
   const visibleTrips = tripListMode === 'active' ? activeTrips : archivedTrips;
   const activeTrip = trips.find((trip) => trip.id === activeTripId && !trip.archived);
   const canLoadTrips = !auth.configured || Boolean(auth.user);
+
+  function notify(message: string, error = false) { setToast(message); setToastError(error); }
+
+  useEffect(() => {
+    if (!toast || toastError) return;
+    const timer = window.setTimeout(() => setToast(''), 6000);
+    return () => window.clearTimeout(timer);
+  }, [toast, toastError]);
+
+  useEffect(() => {
+    if (access.mode === 'unavailable') { setTrips([]); setDialog(null); }
+  }, [access.mode]);
+
+  useEffect(() => {
+    const offline = () => { repository.goOffline(); };
+    const online = () => { void refreshTrips().catch(() => { setTrips([]); }); };
+    window.addEventListener('offline', offline);
+    window.addEventListener('online', online);
+    const timer = window.setInterval(() => {
+      if (access.mode === 'offline' && access.syncedAt && Date.now() - access.syncedAt >= SNAPSHOT_TTL) {
+        setTrips([]);
+        repository.invalidate();
+        if (auth.user) void readSnapshot(auth.user.uid).catch(() => notify('Expired offline copy could not be removed.', true));
+        notify('Offline copy expired. Reconnect to load trips.', true);
+      }
+    }, 30_000);
+    return () => {
+      window.removeEventListener('offline', offline);
+      window.removeEventListener('online', online);
+      window.clearInterval(timer);
+    };
+  }, [repository, access.mode, access.syncedAt]);
+
+  useEffect(() => {
+    const storageChanged = () => {
+      if (!auth.user) return;
+      const enabled = offlineEnabled(auth.user.uid);
+      setOfflineConsent(enabled);
+      if (!enabled && access.mode === 'offline') { setTrips([]); setDialog(null); repository.invalidate(); }
+    };
+    window.addEventListener('storage', storageChanged);
+    return () => window.removeEventListener('storage', storageChanged);
+  }, [auth.user?.uid, access.mode, repository]);
+
+  async function changeOfflineConsent() {
+    if (!auth.user || offlineBusy) return;
+    if (!offlineConsent && !window.confirm('Keep a read-only copy of trips on this device for up to seven days? Device users may be able to read it. Access revocation cannot be checked offline. Sign-out clears trip snapshots, but not local photos.')) return;
+    setOfflineBusy(true);
+    try {
+      if (offlineConsent) {
+        await clearOffline(auth.user.uid);
+        setOfflineConsent(false);
+        if (readOnly) { setTrips([]); repository.invalidate(); }
+        notify('Offline trip copy cleared. Local photos were kept.');
+      } else {
+        allowOffline(auth.user.uid);
+        setOfflineConsent(true);
+        await refreshTrips();
+        notify('Offline viewing enabled.');
+      }
+    } catch { notify('Offline storage could not be updated. Retry when connected.', true); }
+    finally { setOfflineBusy(false); }
+  }
 
   useEffect(() => {
     let active = true;
@@ -696,17 +793,19 @@ function AppWorkspace() {
         setStorageError(false);
       })
       .catch(() => {
-        if (active) setStorageError(true);
+        if (active) { setTrips([]); setStorageError(true); }
       })
       .finally(() => {
         if (active) setLoadingTrips(false);
       });
 
-    return () => { active = false; };
+    return () => { active = false; repository.invalidate(); };
   }, [repository, canLoadTrips, auth.user?.uid]);
 
   async function refreshTrips(): Promise<void> {
-    const loadedTrips = await repository.listTrips();
+    let loadedTrips: Trip[];
+    try { loadedTrips = await repository.listTrips(); }
+    catch (error) { setTrips([]); throw error; }
     setTrips(loadedTrips);
     setActiveTripId((current) => loadedTrips.some((trip) => trip.id === current && !trip.archived)
       ? current
@@ -724,11 +823,13 @@ function AppWorkspace() {
 
     try {
       await repository.setTripArchived(trip.id, archived);
+      notify(archived ? 'Trip archived.' : 'Trip restored.');
       await refreshTrips();
       if (archived && activeTripId === trip.id) setCurrentView('trips');
       if (!archived && !activeTripId) setActiveTripId(trip.id);
     } catch {
       setStorageError(true);
+      notify('Trip status could not be changed.', true);
     }
   }
 
@@ -736,8 +837,11 @@ function AppWorkspace() {
     try {
       saveUserSettings(nextSettings);
       setSettings(nextSettings);
+      notify('Settings saved.');
     } catch {
       setStorageError(true);
+      notify('Settings could not be saved.', true);
+      throw new Error('Settings could not be saved.');
     }
   }
 
@@ -750,9 +854,10 @@ function AppWorkspace() {
     try {
       if (convertedExpenses) await repository.saveCurrencyConversion(savedTrip);
       else await repository.saveTrip(savedTrip);
-    } catch (error) {
+    } catch {
       setStorageError(true);
-      throw new Error(error instanceof Error ? error.message : 'Could not save this trip.');
+      notify('Trip could not be saved.', true);
+      throw new Error('Trip could not be saved. Check the fields and connection, then retry.');
     }
 
     try {
@@ -768,6 +873,7 @@ function AppWorkspace() {
       setCurrentView('itinerary');
     }
     setDialog(null);
+    notify('Trip saved.');
   }
 
   async function saveActivity(values: Omit<Activity, 'id'>, id?: string, photosDiscarded = false) {
@@ -777,6 +883,7 @@ function AppWorkspace() {
     const activity: Activity = existing ? { ...existing, ...values } : { ...values, id: createId() };
     try {
       await repository.saveActivity(trip.id, activity);
+      notify('Activity saved.');
     } catch {
       setStorageError(true);
       throw new Error('Could not save this activity.');
@@ -793,6 +900,7 @@ function AppWorkspace() {
     if (!activeTrip || !window.confirm(`Remove "${activity.title}" from the itinerary?`)) return;
     try {
       await repository.deleteActivity(activeTrip.id, activity.id);
+      notify('Activity removed.');
       await Promise.all([...(activity.photos ?? []), ...(activity.outfitPhoto ? [activity.outfitPhoto] : [])].map((photo) => deleteLocalPhoto(photo.id).catch(() => undefined)));
       await refreshTrips();
     } catch {
@@ -804,16 +912,20 @@ function AppWorkspace() {
     if (!activeTrip) return;
     try {
       await repository.saveExpense(activeTrip.id, expense);
-      await refreshTrips();
+      notify('Expense saved.');
     } catch {
       setStorageError(true);
+      notify('Expense could not be saved.', true);
+      throw new Error('Expense could not be saved. Check the fields and connection, then retry.');
     }
+    try { await refreshTrips(); } catch { notify('Expense saved, but the latest list could not be refreshed.', true); }
   }
 
   async function deleteExpense(expense: Expense) {
     if (!activeTrip || !window.confirm(`Delete "${expense.title}" from expenses?`)) return;
     try {
       await repository.deleteExpense(activeTrip.id, expense.id);
+      notify('Expense removed.');
       await refreshTrips();
     } catch {
       setStorageError(true);
@@ -828,6 +940,7 @@ function AppWorkspace() {
 
     try {
       await repository.saveTrip({ ...activeTrip, completedDayDates: [...completedDates] });
+      notify(completedDates.has(date) ? 'Day completed. Added to Memories.' : 'Day marked not done.');
       await refreshTrips();
     } catch {
       setStorageError(true);
@@ -864,16 +977,26 @@ function AppWorkspace() {
             <span className="brand-wordmark">gala<span>·</span>nanaman</span>
           </a>
           <nav className="workspace-tabs" aria-label="Workspace views">
+            <button className={currentView === 'memories' ? 'active' : ''} aria-current={currentView === 'memories' ? 'page' : undefined} onClick={() => setCurrentView('memories')}><CalendarDays size={15} /> Memories</button>
             <button className={currentView === 'trips' ? 'active' : ''} aria-current={currentView === 'trips' ? 'page' : undefined} onClick={() => setCurrentView('trips')}><MapPin size={15} /> Trips <span>{activeTrips.length}</span></button>
             <button className={currentView === 'itinerary' ? 'active' : ''} aria-current={currentView === 'itinerary' ? 'page' : undefined} disabled={!activeTrip} onClick={() => setCurrentView('itinerary')}><ListChecks size={15} /> Itinerary</button>
             <button className={currentView === 'expenses' ? 'active' : ''} aria-current={currentView === 'expenses' ? 'page' : undefined} disabled={!activeTrip} onClick={() => setCurrentView('expenses')}><Receipt size={15} /> Expenses</button>
           </nav>
           <div className="topbar-actions">
-            <div className="topbar-status"><span className="status-dot" /> {auth.user?.email ?? 'Local prototype'}</div>
+            <div className="topbar-status"><span className="status-dot" /><span className="account-email" title={auth.user?.email ?? 'Local prototype'}>{auth.user?.email ?? 'Local prototype'}</span></div>
             <button className="icon-button" type="button" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}><SettingsIcon size={16} /></button>
             {auth.user && <button className="icon-button" type="button" aria-label="Sign out" title="Sign out" onClick={() => { void auth.signOut(); }}><LogOut size={15} /></button>}
           </div>
         </header>
+
+        <div className="offline-toolbar">
+          <span role="status">{readOnly ? access.message || 'Checking connection...' : 'Online'}{access.syncedAt ? ` · Last synced ${new Date(access.syncedAt).toLocaleString()}` : ''}</span>
+          {access.message && !readOnly && <span role="status">{access.message}</span>}
+          <button type="button" className="icon-button" aria-label="Refresh trips" title="Refresh trips" onClick={() => { void refreshTrips().catch(() => notify('Trips could not be refreshed.', true)); }}><RotateCcw size={16} /></button>
+          {auth.user && <label className="offline-toggle"><input type="checkbox" checked={offlineConsent} disabled={offlineBusy || (!offlineConsent && readOnly)} onChange={() => { void changeOfflineConsent(); }} /> Offline copy</label>}
+        </div>
+        {toast && <div className={`app-toast ${toastError ? 'toast-error' : ''}`} role={toastError ? 'alert' : 'status'}><span>{toast}</span><button type="button" className="icon-button" aria-label="Dismiss message" onClick={() => setToast('')}><X size={16} /></button></div>}
+        {auth.error && <p className="storage-alert" role="alert">{auth.error}</p>}
 
         {storageError && <div className="storage-alert" role="status">{auth.configured
           ? 'Firestore could not load or save trip data. Check your connection and sign-in; each trip is saved with the signed-in user UID as ownerId, and Firestore Rules must allow that owner.'
@@ -881,7 +1004,8 @@ function AppWorkspace() {
         {tripRefreshNotice && <div className="photo-save-notice" role="status">{tripRefreshNotice}</div>}
         {activityPhotoNotice && <div className="photo-save-notice" role="status">{activityPhotoNotice}</div>}
 
-        {currentView === 'trips' ? (
+        <div hidden={currentView !== 'memories'}><MemoriesView trips={trips} timeFormat={settings.timeFormat} /></div>
+        {currentView === 'memories' ? null : currentView === 'trips' ? (
           <div className="content-wrap trips-wrap">
             <section className="trips-page-heading">
               <div>
@@ -889,7 +1013,7 @@ function AppWorkspace() {
                 <h1>Trips</h1>
                 <p>Keep each journey and its itinerary in its own workspace.</p>
               </div>
-              <button className="button button-primary add-trip-button" onClick={() => setDialog({ kind: 'trip' })}><Plus size={18} /> Add trip</button>
+              <button className="button button-primary add-trip-button" disabled={readOnly} onClick={() => setDialog({ kind: 'trip' })}><Plus size={18} /> Add trip</button>
             </section>
 
             {trips.length ? (
@@ -910,11 +1034,11 @@ function AppWorkspace() {
                     <div className="overview-trip-count"><strong>{trip.activities.length}</strong><span>activities</span></div>
                     <div className="overview-trip-actions">
                       {trip.archived ? (
-                        <button className="icon-button" aria-label={`Restore ${trip.name}`} title="Restore trip" onClick={() => { void setTripArchived(trip, false); }}><RotateCcw size={15} /></button>
+                        <button className="icon-button" disabled={readOnly} aria-label={`Restore ${trip.name}`} title="Restore trip" onClick={() => { void setTripArchived(trip, false); }}><RotateCcw size={15} /></button>
                       ) : (
                         <>
-                          <button className="icon-button" aria-label={`Edit ${trip.name}`} title="Edit trip" onClick={() => setDialog({ kind: 'trip', trip })}><Pencil size={15} /></button>
-                          <button className="icon-button" aria-label={`Archive ${trip.name}`} title="Archive trip" onClick={() => { void setTripArchived(trip, true); }}><Archive size={15} /></button>
+                          <button className="icon-button" disabled={readOnly} aria-label={`Edit ${trip.name}`} title="Edit trip" onClick={() => setDialog({ kind: 'trip', trip })}><Pencil size={15} /></button>
+                          <button className="icon-button" disabled={readOnly} aria-label={`Archive ${trip.name}`} title="Archive trip" onClick={() => { void setTripArchived(trip, true); }}><Archive size={15} /></button>
                           <button className="button button-outline" onClick={() => { setActiveTripId(trip.id); setCurrentView('itinerary'); }}>Open itinerary <ArrowRight size={15} /></button>
                         </>
                       )}
@@ -930,12 +1054,12 @@ function AppWorkspace() {
                 <span className="empty-icon"><MapPin size={20} /></span>
                 <h3>No trips yet</h3>
                 <p>Create a trip to start a separate itinerary workspace.</p>
-                <button className="button button-primary add-trip-button" onClick={() => setDialog({ kind: 'trip' })}><Plus size={17} /> Add your first trip</button>
+                <button className="button button-primary add-trip-button" disabled={readOnly} onClick={() => setDialog({ kind: 'trip' })}><Plus size={17} /> Add your first trip</button>
               </div>
             )}
           </div>
         ) : currentView === 'expenses' && activeTrip ? (
-          <ExpensesView trip={activeTrip} initialActivityId={expenseActivityId} onSave={saveExpense} onDelete={deleteExpense} />
+          <ExpensesView trip={activeTrip} readOnly={readOnly} initialActivityId={expenseActivityId} onSave={saveExpense} onDelete={deleteExpense} />
         ) : activeTrip ? (
           <div className="content-wrap">
             <section className="trip-heading">
@@ -946,7 +1070,7 @@ function AppWorkspace() {
                     <h1>{activeTrip.name}</h1>
                     <p className="trip-location"><MapPin size={16} /> {activeTrip.destination}</p>
                   </div>
-                  <button className="button button-outline edit-trip-button" onClick={() => setDialog({ kind: 'trip', trip: activeTrip })}><Pencil size={15} /> Edit trip</button>
+                  <button className="button button-outline edit-trip-button" disabled={readOnly} onClick={() => setDialog({ kind: 'trip', trip: activeTrip })}><Pencil size={15} /> Edit trip</button>
                 </div>
                 <div className="trip-meta">
                   <span><CalendarDays size={15} /> {dateRange(activeTrip.startDate, activeTrip.endDate)}</span>
@@ -961,7 +1085,7 @@ function AppWorkspace() {
               <div className="summary-item"><span className="summary-label">LENGTH</span><strong>{tripLength(activeTrip.startDate, activeTrip.endDate)} <small>days</small></strong></div>
               <div className="summary-item"><span className="summary-label">PLANNED</span><strong>{activeTrip.activities.length} <small>activities</small></strong></div>
               <div className="summary-item next-up-item"><span className="summary-label">NEXT UP</span><strong>{nextActivity?.title ?? 'Nothing scheduled yet'}</strong></div>
-              <button className="button button-primary summary-add" onClick={() => setDialog({ kind: 'activity', trip: activeTrip })}><Plus size={17} /> Add activity</button>
+              <button className="button button-primary summary-add" disabled={readOnly} onClick={() => setDialog({ kind: 'activity', trip: activeTrip })}><Plus size={17} /> Add activity</button>
             </section>
 
             <section className="itinerary-section">
@@ -980,7 +1104,7 @@ function AppWorkspace() {
               </div>
 
               {itineraryMode === 'map' ? (
-                <RouteMap trip={activeTrip} activities={sortedActivities} timeFormat={settings.timeFormat} />
+                readOnly ? <p>Map services are unavailable offline. Recorded places remain in the list.</p> : <RouteMap trip={activeTrip} activities={sortedActivities} timeFormat={settings.timeFormat} />
               ) : activityDays.length ? (
                 <div className="day-list">
                   {activityDays.map((date, dayIndex) => {
@@ -990,7 +1114,7 @@ function AppWorkspace() {
                         <div className="day-label">
                           <span className="day-number">{String(dayIndex + 1).padStart(2, '0')}</span>
                           <div><h3>{formatDate(date, { weekday: 'long', month: 'long', day: 'numeric' })}</h3><span>{dayActivities.length} {dayActivities.length === 1 ? 'stop' : 'stops'}</span></div>
-                          <button className="day-complete-toggle" type="button" aria-pressed={(activeTrip.completedDayDates ?? []).includes(date)} title={(activeTrip.completedDayDates ?? []).includes(date) ? 'Mark day not done' : 'Mark day done'} aria-label={`${(activeTrip.completedDayDates ?? []).includes(date) ? 'Mark' : 'Mark'} ${formatDate(date, { month: 'long', day: 'numeric' })} ${(activeTrip.completedDayDates ?? []).includes(date) ? 'not done' : 'done'}`} onClick={() => { void toggleDayComplete(date); }}>
+                          <button className="day-complete-toggle" type="button" disabled={readOnly} aria-pressed={(activeTrip.completedDayDates ?? []).includes(date)} title={(activeTrip.completedDayDates ?? []).includes(date) ? 'Mark day not done' : 'Mark day done'} aria-label={`Mark ${formatDate(date, { month: 'long', day: 'numeric' })} ${(activeTrip.completedDayDates ?? []).includes(date) ? 'not done' : 'done'}`} onClick={() => { void toggleDayComplete(date); }}>
                             <CircleCheck size={17} />
                           </button>
                         </div>
@@ -1010,9 +1134,9 @@ function AppWorkspace() {
                                 {activeTrip.expenses.some((expense) => expense.activityId === activity.id) && <p className="activity-expense-note">Spent {formatAmount(activeTrip.expenses.filter((expense) => expense.activityId === activity.id).reduce((sum, expense) => sum + expense.amountMinor, 0), activeTrip.currencyCode)}</p>}
                               </div>
                               <div className="activity-actions">
-                                <button className="icon-button" aria-label={`Edit ${activity.title}`} title="Edit activity" onClick={() => setDialog({ kind: 'activity', trip: activeTrip, activity })}><Pencil size={15} /></button>
-                                <button className="icon-button" aria-label={`Add expense for ${activity.title}`} title="Add expense for activity" onClick={() => { setExpenseActivityId(activity.id); setCurrentView('expenses'); }}><Receipt size={15} /></button>
-                                <button className="icon-button danger-hover" aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => deleteActivity(activity)}><Trash2 size={15} /></button>
+                                <button className="icon-button" disabled={readOnly} aria-label={`Edit ${activity.title}`} title="Edit activity" onClick={() => setDialog({ kind: 'activity', trip: activeTrip, activity })}><Pencil size={15} /></button>
+                                <button className="icon-button" disabled={readOnly} aria-label={`Add expense for ${activity.title}`} title="Add expense for activity" onClick={() => { setExpenseActivityId(activity.id); setCurrentView('expenses'); }}><Receipt size={15} /></button>
+                                <button className="icon-button danger-hover" disabled={readOnly} aria-label={`Remove ${activity.title}`} title="Remove activity" onClick={() => deleteActivity(activity)}><Trash2 size={15} /></button>
                               </div>
                             </article>
                           ))}
@@ -1026,7 +1150,7 @@ function AppWorkspace() {
                   <span className="empty-icon"><CalendarDays size={20} /></span>
                   <h3>A little room for a plan</h3>
                   <p>Add your first activity to start shaping the days ahead.</p>
-                  <button className="button button-outline" onClick={() => setDialog({ kind: 'activity', trip: activeTrip })}><Plus size={16} /> Add the first activity</button>
+                  <button className="button button-outline" disabled={readOnly} onClick={() => setDialog({ kind: 'activity', trip: activeTrip })}><Plus size={16} /> Add the first activity</button>
                 </div>
               )}
             </section>
@@ -1042,13 +1166,14 @@ function AppWorkspace() {
         )}
       </main>
 
-      {dialog?.kind === 'trip' && <TripDialog key={dialog.trip?.id ?? 'new-trip'} trip={dialog.trip} defaultCurrencyCode={settings.defaultCurrencyCode} onClose={() => setDialog(null)} onSave={saveTrip} />}
-      {dialog?.kind === 'activity' && <ActivityDialog key={dialog.activity?.id ?? 'new-activity'} trip={dialog.trip} activity={dialog.activity} onClose={() => setDialog(null)} onSave={saveActivity} />}
+      {dialog?.kind === 'trip' && <TripDialog key={dialog.trip?.id ?? 'new-trip'} trip={dialog.trip} readOnly={readOnly} defaultCurrencyCode={settings.defaultCurrencyCode} onClose={() => setDialog(null)} onSave={saveTrip} />}
+      {dialog?.kind === 'activity' && <ActivityDialog key={dialog.activity?.id ?? 'new-activity'} trip={dialog.trip} activity={dialog.activity} readOnly={readOnly} onClose={() => setDialog(null)} onSave={saveActivity} />}
       {settingsOpen && <SettingsDialog settings={settings} onClose={() => setSettingsOpen(false)} onSave={updateSettings} />}
     </div>
   );
 }
 
 export default function App() {
-  return <AppWorkspace />;
+  const auth = useAuth();
+  return <AppWorkspace key={auth.user?.uid ?? 'signed-out'} />;
 }

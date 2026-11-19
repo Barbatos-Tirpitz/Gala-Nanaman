@@ -32,6 +32,9 @@ export function loadUserSettings(): UserSettings {
 }
 
 export function saveUserSettings(settings: UserSettings): void {
+  if (!['12h', '24h'].includes(settings.timeFormat) || !SUPPORTED_CURRENCIES.has(settings.defaultCurrencyCode)) {
+    throw new Error('Choose a supported time format and currency.');
+  }
   window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
 }
 
