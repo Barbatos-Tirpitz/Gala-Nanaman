@@ -1,3 +1,5 @@
+import { preparePhoto } from './photoProcessing';
+
 export interface LocalPhotoRef {
   id: string;
   name: string;
@@ -20,7 +22,8 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveLocalPhoto(file: File): Promise<LocalPhotoRef> {
+export async function saveLocalPhoto(original: File): Promise<LocalPhotoRef> {
+  const file = await preparePhoto(original);
   if (navigator.storage?.estimate) {
     const { usage = 0, quota } = await navigator.storage.estimate();
     if (quota && usage + file.size > quota) throw new Error('Not enough local storage space for this photo.');
