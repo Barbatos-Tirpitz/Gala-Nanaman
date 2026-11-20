@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Gala Nanaman</string>
+    <string name="title_activity_main">Gala Nanaman</string>
+    <string name="package_name">com.galananaman.travel</string>
+    <string name="custom_url_scheme">com.galananaman.travel</string>
+</resources>

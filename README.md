@@ -410,7 +410,7 @@ entities:
 | Photos | Wikimedia Commons | Prototype place imagery with source links |
 | Usage limits | Browser-enforced daily limits per account | Fair-use caps for place, route, and photo lookups |
 | Rule tests | Firebase Emulator and Rules Unit Testing | Verify owner-only database access |
-| Unit tests | Vitest | Currency conversion and usage-limit logic |
+| Unit tests | Vitest | Currency conversion, offline storage, memories, calendar dates, validation, photo processing, and repository behavior |
 | Offline support | IndexedDB and service worker | Opt-in seven-day read-only snapshots; authenticated/native release checks pending |
 | Version control | GitHub | Source code and project documentation |
 
@@ -530,22 +530,25 @@ the latest available reference rate and may differ from a payment provider's rat
 ## Mobile Builds
 
 The app is wrapped with Capacitor 7. Android APK builds can be created on
-Windows with Android Studio, Android SDK, and JDK 17. iOS builds require
+Windows with Android Studio, Android SDK, and JDK 21. iOS builds require
 macOS, Xcode, and Apple signing. The native app ID is
 `com.galananaman.travel`.
 
 ### Android APK
 
-1. Install Android Studio and JDK 17, then configure the Android SDK.
-2. Register an Android app with the native app ID in Firebase. Enable Google
-    sign-in, add the app's SHA-1 fingerprint in Firebase project settings, and
-    download `google-services.json` to `android/app/`. The file is ignored by
-    Git. Add the Play App Signing SHA-1 as well before distributing through
-    Google Play.
-3. Generate the Android project with `npm run mobile:add:android`.
-4. Add `rgcfaIncludeGoogle = true` and
-    `androidxCredentialsVersion = '1.3.0'` inside the `ext` block in
-    `android/variables.gradle`, then run `npx cap update android`.
+1. Install Android Studio and JDK 21, then configure the Android SDK.
+2. Generate the Android project with `npm run mobile:add:android`.
+3. Register an Android app with the native app ID (`com.galananaman.travel`)
+    in Firebase. Enable Google sign-in, add the app's SHA-1 fingerprint in
+    Firebase project settings, and download the matching
+    `google-services.json` to `android/app/`. The file is ignored by Git. The
+    repository-root `google-services.json` targets a different Android package
+    and must not be copied as the Android app config. Add the Play App Signing
+    SHA-1 as well before distributing through Google Play.
+4. The project-level Google Services Gradle plugin (version 4.6.0) and
+    Google sign-in dependencies are configured in `android/build.gradle` and
+    `android/variables.gradle`. The app module applies the plugin when its
+    matching `android/app/google-services.json` is present.
 5. Build and copy the app with `npm run mobile:sync:android`.
 6. Open the project with `npx cap open android`. In Android Studio, use
     **Build > Build Bundle(s) / APK(s) > Build APK(s)** for a sideloadable APK.
@@ -570,22 +573,25 @@ the `android` directory to find the debug SHA-1 before configuring Firebase.
 ## Mobile Builds
 
 The app is wrapped with Capacitor 7. Android APK builds can be created on
-Windows with Android Studio, Android SDK, and JDK 17. iOS builds require
+Windows with Android Studio, Android SDK, and JDK 21. iOS builds require
 macOS, Xcode, and Apple signing. The native app ID is
 `com.galananaman.travel`.
 
 ### Android APK
 
-1. Install Android Studio and JDK 17, then configure the Android SDK.
-2. Register an Android app with the native app ID in Firebase. Enable Google
-    sign-in, add the app's SHA-1 fingerprint in Firebase project settings, and
-    download `google-services.json` to `android/app/`. The file is ignored by
-    Git. Add the Play App Signing SHA-1 as well before distributing through
-    Google Play.
-3. Generate the Android project with `npm run mobile:add:android`.
-4. Add `rgcfaIncludeGoogle = true` and
-    `androidxCredentialsVersion = '1.3.0'` inside the `ext` block in
-    `android/variables.gradle`, then run `npx cap update android`.
+1. Install Android Studio and JDK 21, then configure the Android SDK.
+2. Generate the Android project with `npm run mobile:add:android`.
+3. Register an Android app with the native app ID (`com.galananaman.travel`)
+    in Firebase. Enable Google sign-in, add the app's SHA-1 fingerprint in
+    Firebase project settings, and download the matching
+    `google-services.json` to `android/app/`. The file is ignored by Git. The
+    repository-root `google-services.json` targets a different Android package
+    and must not be copied as the Android app config. Add the Play App Signing
+    SHA-1 as well before distributing through Google Play.
+4. The project-level Google Services Gradle plugin (version 4.6.0) and
+    Google sign-in dependencies are configured in `android/build.gradle` and
+    `android/variables.gradle`. The app module applies the plugin when its
+    matching `android/app/google-services.json` is present.
 5. Build and copy the app with `npm run mobile:sync:android`.
 6. Open the project with `npx cap open android`. In Android Studio, use
     **Build > Build Bundle(s) / APK(s) > Build APK(s)** for a sideloadable APK.
@@ -663,6 +669,7 @@ scope approval and recovery rehearsal remain open.
 -   [x] Display activities chronologically with configurable 12/24-hour time.
 -   [x] Default new activity times one hour after the preceding stop.
 -   [x] Mark itinerary days complete.
+-   [x] Validate calendar dates and advance activities by one day without overwriting custom times.
 -   [x] Attach local photos and outfit-of-the-day notes to activities.
 -   [x] Add expenses from itinerary activities and show linked spend inline.
 -   [x] Configure the default currency for new trips, including PHP.
@@ -786,19 +793,27 @@ application rules independent of Firestore-specific document layouts.
 
 ## Project Status
 
-**Current stage: Firebase-backed implementation in progress.**
+**Current stage: Firebase-backed implementation with release checks remaining.**
 
-The prototype includes Google sign-in, a Firestore repository adapter,
-owner-only Firestore Rules, itinerary and expense management, activity and
-outfit photos, and daily fair-use limits for map lookups. Trip archiving is
-reversible and preserves nested records. Currency conversion uses a dated
-reference rate. It targets the no-cost Spark plan. Preferences and activity
-photo blobs remain on the device and are not synced. Firebase project values
-are not configured in the repository; local rules-emulator tests require
-Java, while CI is configured to run them with Java 17. The browser-local
-adapter is for development only. Complete Phase 0 and verify the rules suite
-before using real trip data. Collaboration is design-only; read-only offline
-viewing and memories are implemented, with release gates tracked separately.
+The current implementation includes Google sign-in, a Firestore repository
+adapter, owner-only Firestore Rules, itinerary and expense management,
+reversible trip archiving, activity and outfit photos, map lookups with
+client-side daily fair-use limits, and dated currency conversion. Calendar
+date validation and day advancement are implemented. Offline support includes
+the installable PWA shell, opt-in account-scoped seven-day read-only snapshots,
+and completed-trip Memories with an activity timeline and manual photo
+carousel. These features have unit-test coverage; the latest local validation
+passed `npm run build` and `npm test` (21 tests).
+
+Production readiness is not yet established. Collaboration remains
+design-only, and authenticated offline cold-start, native-device, privacy,
+deployment, and recovery checks remain open. Local Firebase web settings are
+provided through environment files, and Android still needs a Firebase config
+registered for the native application ID; local rules-emulator tests require Java, while
+CI is configured to run them with Java 17. Preferences and activity photo
+blobs remain on the device and are not synced. The browser-local adapter is
+for development only. Complete the release gates and verify the Firestore
+Rules suite before using real trip data.
 
 ------------------------------------------------------------------------
 
