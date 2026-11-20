@@ -23,6 +23,8 @@ Thumbs.db
 .env.local
 .env.development.local
 .env.production.local
+google-services.json
+android/app/google-services.json
 
 #md
 *.md
@@ -30,3 +32,5 @@ Thumbs.db
 !MVP_SCOPE.md
 !docs/COLLABORATION.md
 !docs/RELEASE_GATES.md
+
+

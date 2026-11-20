@@ -1,0 +1,13 @@
+{
+	"appId": "com.galananaman.travel",
+	"appName": "Gala Nanaman",
+	"webDir": "dist",
+	"plugins": {
+		"FirebaseAuthentication": {
+			"providers": [
+				"google.com"
+			],
+			"skipNativeAuth": true
+		}
+	}
+}
