@@ -210,6 +210,58 @@ Offline data is a read-only snapshot, not a second editable source of
 truth. Sensitive information should not be cached unless it is necessary
 and appropriately protected.
 
+## Local Map Cache and Google Maps Links
+
+Leaflet remains the in-app map. Both map views use the canonical OSM tile URL;
+the browser's normal HTTP cache honors the provider's cache headers. The service
+worker does not cache map tiles or provider API responses. No offline-area
+downloads, tile prefetch, or city/zoom archives are supported.
+
+To save eligible place lookups across visits, sign in, enable **Offline copy**,
+then open **Settings > Keep map lookups on this device** and accept the additional
+location-history consent. Existing offline consent does not automatically enable
+query storage. Persistent results are private to the account in that browser
+profile/app installation, not synchronized to other devices.
+
+| Data | Current cache behavior |
+| --- | --- |
+| OSM tiles | Browser-managed HTTP cache, not app-managed offline maps |
+| Photon search | Up to 24 hours; opt-in IndexedDB plus session memory |
+| Photon reverse geocoding | Up to seven days; opt-in IndexedDB plus session memory |
+| OSRM route estimates | Up to six hours in session memory only, pending persistence-policy review |
+| Wikimedia place-photo metadata | Up to 24 hours in session memory only, pending persistence-policy review |
+| Personal uploaded photos | Existing separate on-device photo storage; unaffected |
+
+Provider cache directives can shorten freshness or prohibit storage. Expired
+results are refreshed rather than silently presented as current. App-managed
+lookup storage is capped at 200 entries / approximately 5 MiB per account, with
+512 KiB per-entry protection and expired/LRU eviction. Retention never extends
+beyond seven days from fetching because of repeated reads. Failed storage falls
+back to bounded memory; successful provider results still display. Cached hits
+do not consume another daily lookup allowance. These allowances remain advisory.
+
+**Clear cached lookups** removes app-managed query/coordinate results, not trip
+records or personal images. Sign-out, account change, offline-consent withdrawal
+and detected access denial also revoke and clear this history. A late request
+cannot repopulate cleared data. Web Locks reduce duplicate requests across tabs
+where supported; otherwise coalescing is per-tab. Expiry/deletion runs when the
+app executes and can fail if storage is unavailable. The app cannot guarantee
+erasure of browser-managed tile/image HTTP caches; clear browser/device data for
+that. Local data is not encrypted against other device users.
+
+Recorded locations offer **Open in Google Maps** and **Directions**. These are
+encoded HTTPS Maps URLs, not a Google API/SDK integration: no API key or Maps
+Platform API billing is needed. A deliberate click sends the selected location
+to Google; trip notes, account IDs and tracking parameters are not included.
+Directions omit the origin so Google can ask for or use its own location context.
+Its route may differ from OSRM, and its offline availability is not guaranteed.
+Native universal-link/system-browser behavior still requires device validation.
+
+Provider references: [OSM tile policy](https://operations.osmfoundation.org/policies/tiles/),
+[Photon public demo](https://github.com/komoot/photon#demo-server),
+[OSRM policy and operator referrals](https://github.com/Project-OSRM/osrm-backend/wiki/Api-usage-policy),
+[Google Maps URLs](https://developers.google.com/maps/documentation/urls/guide).
+
 ## Planned Architecture
 
 The MVP uses a React and TypeScript application with Firebase

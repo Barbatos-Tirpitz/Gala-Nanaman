@@ -4,6 +4,7 @@ import type { Trip } from './types';
 import { memoryDays } from './services/memories';
 import { formatTime } from './settings';
 import ActivityPhotoGallery from './ActivityPhotoGallery';
+import LocationActions from './LocationActions';
 
 function dateLabel(date: string): string {
   return new Intl.DateTimeFormat('en', { dateStyle: 'full', timeZone: 'UTC' }).format(new Date(`${date}T12:00:00Z`));
@@ -75,6 +76,7 @@ export default function MemoriesView({ trips, timeFormat }: { trips: Trip[]; tim
             <p className="memory-time">{formatTime(activity.startTime, timeFormat)} – {formatTime(activity.endTime, timeFormat)}</p>
             <h4>{activity.title}</h4>
             {activity.location && <p><MapPin size={14} /> {activity.location.label}</p>}
+            {activity.location && <LocationActions place={activity.location} />}
             {activity.notes && <p>{activity.notes}</p>}
             {activity.outfitNotes && <p>{activity.outfitNotes}</p>}
             <ActivityPhotoGallery photos={activity.photos ?? []} newFiles={[]} readOnly />

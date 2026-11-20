@@ -2,6 +2,10 @@ import { firebaseAuth } from '../firebase';
 import type { PlaceLocation } from '../types';
 import { consumeDailyUsage, type UsageKind } from './usageLimits';
 import { safeProviderUrl } from './externalUrl';
+import { z } from 'zod';
+import { offlineEnabled } from '../offline';
+import { httpCachePolicy, mapHistoryEnabled, mapLookupCache, type LookupResult } from './mapCache';
+import { MAP_PROVIDERS } from './mapProviders';
 
 export interface RoutePoint {
   latitude: number;
@@ -53,10 +57,14 @@ interface CommonsResponse {
 }
 
 const MAX_QUERY_LENGTH = 200;
-const MAX_CACHED_RESULTS = 100;
 const REQUEST_TIMEOUT_MS = 15000;
-const cachedResults = new Map<string, unknown>();
-const pendingResults = new Map<string, Promise<unknown>>();
+const HOUR = 60 * 60 * 1000;
+const placeSchema = z.object({ label: z.string().min(1).max(200), latitude: z.number().min(-90).max(90), longitude: z.number().min(-180).max(180), searchTerm: z.string().max(200).optional() });
+const placesSchema = z.array(placeSchema).max(20);
+const routeSchema = z.object({ coordinates: z.array(z.tuple([z.number().min(-90).max(90), z.number().min(-180).max(180)])).min(2), distanceMeters: z.number().nonnegative(), durationSeconds: z.number().nonnegative() });
+const photosSchema = z.object({ query: z.string().nullable(), photos: z.array(z.object({ title: z.string(), thumbnail: z.string().url(), sourceUrl: z.string().url() })).max(8) });
+
+function language(): string { return typeof navigator === 'undefined' ? 'en' : navigator.language?.split('-')[0] || 'en'; }
 
 function isCoordinate(value: unknown, max: number): value is number {
   return typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= max;
@@ -78,46 +86,42 @@ function allowRequest(kind: UsageKind): boolean {
   }
 }
 
-// Requests are shared and not cancelled, so repeated renders and retries count once per lookup.
-async function limitedRequest<T>(kind: UsageKind, cacheKey: string, request: () => Promise<T>, signal?: AbortSignal): Promise<T> {
-  let pending = cachedResults.has(cacheKey)
-    ? Promise.resolve(cachedResults.get(cacheKey) as T)
-    : pendingResults.get(cacheKey) as Promise<T> | undefined;
-
-  if (!pending) {
-    if (!allowRequest(kind)) throw new DailyLimitError();
-    pending = request()
-      .then((result) => {
-        const oldestKey = cachedResults.keys().next().value;
-        if (cachedResults.size >= MAX_CACHED_RESULTS && oldestKey !== undefined) cachedResults.delete(oldestKey);
-        cachedResults.set(cacheKey, result);
-        return result;
-      })
-      .finally(() => pendingResults.delete(cacheKey));
-    pendingResults.set(cacheKey, pending);
-  }
-
-  const result = await pending;
-  if (signal?.aborted) throw new DOMException('The request was aborted.', 'AbortError');
-  return result;
+async function limitedRequest<T>(provider: keyof typeof MAP_PROVIDERS, key: unknown, ttlMs: number, schema: z.ZodType<T>, request: () => Promise<LookupResult<T>>, signal?: AbortSignal): Promise<T> {
+  const uid = firebaseAuth?.currentUser?.uid ?? 'local';
+  return mapLookupCache.lookup({
+    uid, key: JSON.stringify([provider, MAP_PROVIDERS[provider].version, key]), ttlMs, schema, load: request, signal,
+    isCurrent: () => (firebaseAuth?.currentUser?.uid ?? 'local') === uid,
+    canPersist: () => Boolean(firebaseAuth?.currentUser?.uid === uid && MAP_PROVIDERS[provider].persistent && offlineEnabled(uid) && mapHistoryEnabled(uid)),
+  });
 }
 
-async function getJson<T>(url: string): Promise<T> {
-  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-  if (!response.ok) throw new Error(`Request failed with status ${response.status}.`);
-  return response.json() as Promise<T>;
+async function getJson<T>(kind: UsageKind, url: string): Promise<{ data: T } & Pick<LookupResult<T>, 'cacheable' | 'maxAgeMs'>> {
+  if (!allowRequest(kind)) throw new DailyLimitError();
+  const response = await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), cache: 'default' });
+  if (!response.ok) {
+    const error = new Error(`Request failed with status ${response.status}.`);
+    if (response.status === 429) {
+      const retry = response.headers.get('retry-after');
+      Object.assign(error, { retryAfterMs: retry && /^\d+$/.test(retry) ? Number(retry) * 1000 : 30_000 });
+    }
+    throw error;
+  }
+  return { data: await response.json() as T, ...httpCachePolicy(response.headers) };
 }
 
 export function searchPlaces(query: string, limit: number, signal?: AbortSignal): Promise<PlaceLocation[]> {
   if (!Number.isInteger(limit) || limit < 1 || limit > 20) return Promise.reject(new Error('Invalid search limit.'));
-  const text = query.trim().slice(0, MAX_QUERY_LENGTH);
-  return limitedRequest('placeSearch', `place:${limit}:${text.toLowerCase()}`, async () => {
-    const data = await getJson<PhotonResponse>(`https://photon.komoot.io/api/?q=${encodeURIComponent(text)}&limit=${limit}`);
-    return (data.features ?? []).flatMap((feature) => {
+  const text = query.trim().replace(/\s+/g, ' ').slice(0, MAX_QUERY_LENGTH);
+  const url = new URL('https://photon.komoot.io/api/');
+  url.search = new URLSearchParams({ q: text, limit: String(limit), lang: language() }).toString();
+  return limitedRequest('photon', url.href, 24 * HOUR, placesSchema, async () => {
+    const { data, ...policy } = await getJson<PhotonResponse>('placeSearch', url.href);
+    const value = (data.features ?? []).flatMap((feature) => {
       const [longitude, latitude] = feature.geometry?.coordinates ?? [];
       if (!isCoordinate(latitude, 90) || !isCoordinate(longitude, 180)) return [];
       return [{ label: placeLabel(feature.properties), latitude, longitude }];
     });
+    return { ...policy, value, cacheable: policy.cacheable !== false && value.length > 0 };
   }, signal);
 }
 
@@ -128,11 +132,13 @@ export function reversePlace(latitude: number, longitude: number, signal?: Abort
 
   const lat = Number(latitude.toFixed(5));
   const lon = Number(longitude.toFixed(5));
-  return limitedRequest('placeSearch', `reverse:${lat},${lon}`, async () => {
-    const data = await getJson<PhotonResponse>(`https://photon.komoot.io/reverse?lon=${lon}&lat=${lat}&limit=1`);
+  const url = new URL('https://photon.komoot.io/reverse');
+  url.search = new URLSearchParams({ lon: String(lon), lat: String(lat), limit: '1', lang: language() }).toString();
+  return limitedRequest('photon', url.href, 7 * 24 * HOUR, placeSchema, async () => {
+    const { data, ...policy } = await getJson<PhotonResponse>('placeSearch', url.href);
     const feature = data.features?.[0];
     const label = placeLabel(feature?.properties) || `Pinned location (${lat}, ${lon})`;
-    return { label, latitude, longitude, searchTerm: label };
+    return { ...policy, cacheable: policy.cacheable !== false && Boolean(feature), value: { label, latitude: lat, longitude: lon, searchTerm: label } };
   }, signal);
 }
 
@@ -141,24 +147,23 @@ export function getDrivingRoute(points: RoutePoint[], signal?: AbortSignal): Pro
     return Promise.reject(new Error('Choose between two and 100 valid map points.'));
   }
   const path = points.map(({ latitude, longitude }) => `${longitude},${latitude}`).join(';');
-  return limitedRequest('route', `route:${path}`, async () => {
-    const data = await getJson<OsrmResponse>(
-      `https://router.project-osrm.org/route/v1/driving/${path}?overview=full&geometries=geojson&steps=false`,
-    );
+  const url = `https://router.project-osrm.org/route/v1/driving/${path}?overview=full&geometries=geojson&steps=false`;
+  return limitedRequest('osrm', url, 6 * HOUR, routeSchema, async () => {
+    const { data, ...policy } = await getJson<OsrmResponse>('route', url);
     const route = data.routes?.[0];
     if (data.code !== 'Ok' || !route) throw new Error('No route found.');
 
-    return {
+    return { ...policy, value: {
       coordinates: route.geometry.coordinates.map(([longitude, latitude]): [number, number] => [latitude, longitude]),
       distanceMeters: route.distance,
       durationSeconds: route.duration,
-    };
+    } };
   }, signal);
 }
 
 export function findPlacePhotos(queries: string[], signal?: AbortSignal): Promise<PhotoSearch> {
   const searches = [...new Set(queries.map((query) => query.trim().slice(0, MAX_QUERY_LENGTH)).filter(Boolean))].slice(0, 2);
-  return limitedRequest('photos', `photos:${searches.join('|')}`, async () => {
+  return limitedRequest('commons', [searches, 960, language()], 24 * HOUR, photosSchema, async () => {
     let failure: unknown;
 
     for (const query of searches) {
@@ -173,10 +178,11 @@ export function findPlacePhotos(queries: string[], signal?: AbortSignal): Promis
         iiurlwidth: '960',
         format: 'json',
         origin: '*',
+        uselang: language(),
       });
 
       try {
-        const data = await getJson<CommonsResponse>(`https://commons.wikimedia.org/w/api.php?${params}`);
+        const { data, ...policy } = await getJson<CommonsResponse>('photos', `https://commons.wikimedia.org/w/api.php?${params}`);
         const photos = Object.values(data.query?.pages ?? {}).flatMap((page) => {
           const image = page.imageinfo?.[0];
           if (!image?.thumburl || !image.descriptionurl) return [];
@@ -185,13 +191,13 @@ export function findPlacePhotos(queries: string[], signal?: AbortSignal): Promis
           if (!thumbnail || !sourceUrl) return [];
           return [{ title: page.title.replace(/^File:/, '').replaceAll('_', ' '), thumbnail, sourceUrl }];
         });
-        if (photos.length) return { query, photos };
+        if (photos.length) return { ...policy, value: { query, photos } };
       } catch (error) {
         failure = error;
       }
     }
 
     if (failure) throw failure;
-    return { query: null, photos: [] };
+    return { value: { query: null, photos: [] }, cacheable: false };
   }, signal);
 }

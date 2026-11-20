@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import type { PlaceLocation } from './types';
+import { MAP_TILES } from './services/mapProviders';
 
 function pinIcon(): L.DivIcon {
   return L.divIcon({
@@ -54,8 +55,8 @@ export default function MapPicker({
       <MapContainer center={[center.latitude, center.longitude]} zoom={14} scrollWheelZoom className="map-picker">
         <RecenterMap center={center} />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={MAP_TILES.attribution}
+          url={MAP_TILES.url}
         />
         <ClickToPick onPick={selectPoint} />
         {point && <Marker position={position} icon={pinIcon()} />}

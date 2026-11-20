@@ -27,6 +27,8 @@ import RouteMap from './MapView';
 import MapPicker from './MapPicker';
 import ActivityPhotoGallery from './ActivityPhotoGallery';
 import MemoriesView from './MemoriesView';
+import LocationActions from './LocationActions';
+import { mapCacheSummary } from './services/mapCache';
 import { photoValidationError } from './photoProcessing';
 import ModalShell from './ModalShell';
 import ExpensesView from './ExpensesView';
@@ -713,6 +715,13 @@ function AppWorkspace() {
   function notify(message: string, error = false) { setToast(message); setToastError(error); }
 
   useEffect(() => {
+    const warning = () => notify('Map lookups could not be saved on this device. Repeated requests may use the network.', true);
+    window.addEventListener('map-cache-warning', warning);
+    if (auth.user) void mapCacheSummary(auth.user.uid).catch(() => undefined);
+    return () => window.removeEventListener('map-cache-warning', warning);
+  }, [auth.user?.uid]);
+
+  useEffect(() => {
     if (!toast || toastError) return;
     const timer = window.setTimeout(() => setToast(''), 6000);
     return () => window.clearTimeout(timer);
@@ -1127,6 +1136,7 @@ function AppWorkspace() {
                                 <div className="activity-title-line"><h4>{activity.title}</h4><span className={`category-label ${activity.category.toLowerCase()}`}>{activity.category}</span></div>
                                 {activity.outfitOfDay && <span className="outfit-label">Outfit of the day</span>}
                                 {activity.location && <p className="activity-place"><MapPin size={12} /> {activity.location.label}</p>}
+                                {activity.location && <LocationActions place={activity.location} />}
                                 {activity.notes && <p>{activity.notes}</p>}
                                 {activity.outfitNotes && <p>{activity.outfitNotes}</p>}
                                 {activity.outfitPhoto && <ActivityPhotoGallery photos={[activity.outfitPhoto]} newFiles={[]} readOnly label="Outfit photo" />}
@@ -1168,7 +1178,7 @@ function AppWorkspace() {
 
       {dialog?.kind === 'trip' && <TripDialog key={dialog.trip?.id ?? 'new-trip'} trip={dialog.trip} readOnly={readOnly} defaultCurrencyCode={settings.defaultCurrencyCode} onClose={() => setDialog(null)} onSave={saveTrip} />}
       {dialog?.kind === 'activity' && <ActivityDialog key={dialog.activity?.id ?? 'new-activity'} trip={dialog.trip} activity={dialog.activity} readOnly={readOnly} onClose={() => setDialog(null)} onSave={saveActivity} />}
-      {settingsOpen && <SettingsDialog settings={settings} onClose={() => setSettingsOpen(false)} onSave={updateSettings} />}
+      {settingsOpen && <SettingsDialog settings={settings} cacheUid={auth.user?.uid} offlineCopyEnabled={offlineConsent} onCacheNotice={notify} onClose={() => setSettingsOpen(false)} onSave={updateSettings} />}
     </div>
   );
 }
