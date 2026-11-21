@@ -554,6 +554,25 @@ macOS, Xcode, and Apple signing. The native app ID is
     **Build > Build Bundle(s) / APK(s) > Build APK(s)** for a sideloadable APK.
     Use a signed release build for distribution.
 
+### Automated Android debug APK
+
+The `Build Android APK` GitHub Actions workflow runs on every push and can
+also be started from the Actions tab with **Run workflow**. It builds a debug
+APK and uploads it as the `gala-nanaman-android-debug` artifact for 14 days.
+Download the artifact from the completed workflow run. This is a test build,
+not a signed Play Store release.
+
+Configure these repository Actions secrets before using the workflow:
+
+-   `ANDROID_GOOGLE_SERVICES_JSON`: the complete `google-services.json`
+    contents for the Android app registered as `gala.nanaman.app`.
+-   `VITE_FIREBASE_API_KEY`
+-   `VITE_FIREBASE_AUTH_DOMAIN`
+-   `VITE_FIREBASE_PROJECT_ID`
+-   `VITE_FIREBASE_APP_ID`
+
+The four `VITE_FIREBASE_*` secrets are also used by the Hosting workflows.
+
 ### iOS
 
 1. On a Mac, register an iOS app with the native app ID in Firebase. Enable
