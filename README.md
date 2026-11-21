@@ -532,19 +532,19 @@ the latest available reference rate and may differ from a payment provider's rat
 The app is wrapped with Capacitor 7. Android APK builds can be created on
 Windows with Android Studio, Android SDK, and JDK 21. iOS builds require
 macOS, Xcode, and Apple signing. The native app ID is
-`com.galananaman.travel`.
+`gala.nanaman.app`.
 
 ### Android APK
 
 1. Install Android Studio and JDK 21, then configure the Android SDK.
 2. Generate the Android project with `npm run mobile:add:android`.
-3. Register an Android app with the native app ID (`com.galananaman.travel`)
+3. Register an Android app with the native app ID (`gala.nanaman.app`)
     in Firebase. Enable Google sign-in, add the app's SHA-1 fingerprint in
     Firebase project settings, and download the matching
     `google-services.json` to `android/app/`. The file is ignored by Git. The
-    repository-root `google-services.json` targets a different Android package
-    and must not be copied as the Android app config. Add the Play App Signing
-    SHA-1 as well before distributing through Google Play.
+    repository-root `google-services.json` must match this Android package.
+    Add the Play App Signing SHA-1 as well before distributing through Google
+    Play.
 4. The project-level Google Services Gradle plugin (version 4.6.0) and
     Google sign-in dependencies are configured in `android/build.gradle` and
     `android/variables.gradle`. The app module applies the plugin when its
@@ -575,19 +575,19 @@ the `android` directory to find the debug SHA-1 before configuring Firebase.
 The app is wrapped with Capacitor 7. Android APK builds can be created on
 Windows with Android Studio, Android SDK, and JDK 21. iOS builds require
 macOS, Xcode, and Apple signing. The native app ID is
-`com.galananaman.travel`.
+`gala.nanaman.app`.
 
 ### Android APK
 
 1. Install Android Studio and JDK 21, then configure the Android SDK.
 2. Generate the Android project with `npm run mobile:add:android`.
-3. Register an Android app with the native app ID (`com.galananaman.travel`)
+3. Register an Android app with the native app ID (`gala.nanaman.app`)
     in Firebase. Enable Google sign-in, add the app's SHA-1 fingerprint in
     Firebase project settings, and download the matching
     `google-services.json` to `android/app/`. The file is ignored by Git. The
-    repository-root `google-services.json` targets a different Android package
-    and must not be copied as the Android app config. Add the Play App Signing
-    SHA-1 as well before distributing through Google Play.
+    repository-root `google-services.json` must match this Android package.
+    Add the Play App Signing SHA-1 as well before distributing through Google
+    Play.
 4. The project-level Google Services Gradle plugin (version 4.6.0) and
     Google sign-in dependencies are configured in `android/build.gradle` and
     `android/variables.gradle`. The app module applies the plugin when its

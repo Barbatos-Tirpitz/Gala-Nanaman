@@ -1,4 +1,4 @@
-package com.galananaman.travel;
+package gala.nanaman.app;
 
 import com.getcapacitor.BridgeActivity;
 
