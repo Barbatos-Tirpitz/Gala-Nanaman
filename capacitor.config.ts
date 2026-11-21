@@ -3,7 +3,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.galananaman.travel',
+  appId: 'gala.nanaman.app',
   appName: 'Gala Nanaman',
   webDir: 'dist',
   plugins: {

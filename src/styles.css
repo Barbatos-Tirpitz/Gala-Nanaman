@@ -431,12 +431,15 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .nav-count { margin-left: 0; }
   .sidebar-current-trip { display: none; }
   .sidebar-bottom { display: none; }
-  .topbar { grid-template-columns: max-content minmax(0, 1fr); grid-template-rows: auto auto; height: auto; min-height: 82px; gap: 4px 12px; padding: 8px 18px; }
-  .topbar > .brand { grid-column: 1; grid-row: 1; }
+  .topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; height: auto; min-height: 82px; gap: 4px 8px; padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(12px + env(safe-area-inset-left, 0px)); }
+  .topbar > .brand { grid-column: 1; grid-row: 1; min-width: 0; gap: 6px; }
+  .topbar .brand-mark { width: 28px; height: 28px; flex: 0 0 28px; }
+  .brand-wordmark { font-size: 12px; white-space: nowrap; }
   .workspace-tabs { grid-column: 1 / -1; grid-row: 2; justify-self: start; }
   .workspace-tabs button { min-height: 31px; padding: 0 9px; }
   .topbar-actions { grid-column: 2; grid-row: 1; }
-  .topbar-status { max-width: 140px; }
+  .topbar-status { max-width: min(140px, 27vw); }
+  .topbar-actions .icon-button { flex: 0 0 30px; width: 30px; height: 30px; }
   .content-wrap { padding: 30px 18px 22px; }
   .expenses-wrap { padding-top: 30px; }
   .expenses-heading { align-items: flex-start; }
@@ -494,6 +497,10 @@ h1, h2, h3, h4, p { margin-top: 0; }
   .activity-actions { opacity: 1; gap: 0; }
   .activity-actions .icon-button { width: 28px; height: 30px; }
   .content-footer { flex-wrap: wrap; }
+}
+@media (max-width: 360px) {
+  .topbar-status { max-width: 20vw; }
+  .topbar-actions { gap: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
