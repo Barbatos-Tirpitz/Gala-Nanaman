@@ -1,4 +1,5 @@
 import { preparePhoto } from './photoProcessing';
+import { createSecureRandomUUID } from './secureRandom';
 
 export interface LocalPhotoRef {
   id: string;
@@ -32,7 +33,7 @@ export async function saveLocalPhoto(original: File): Promise<LocalPhotoRef> {
     await navigator.storage.persist().catch(() => false);
   }
 
-  const id = globalThis.crypto?.randomUUID?.() ?? `photo-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const id = createSecureRandomUUID();
   const reference: LocalPhotoRef = { id, name: file.name.slice(0, 120), mimeType: file.type, size: file.size };
   const database = await openDatabase();
   try {

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createSecureRandomUUID } from '../secureRandom';
 
 export const MAP_CACHE_TTL = 7 * 24 * 60 * 60 * 1000;
 export const MAP_CACHE_LIMIT = 200;
@@ -234,7 +235,7 @@ export async function clearMapLookups(uid: string, revoke = false): Promise<void
   let failed = false;
   try {
     if (revoke) localStorage.removeItem(CONSENT + uid);
-    localStorage.setItem(EPOCH + uid, globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`);
+    localStorage.setItem(EPOCH + uid, createSecureRandomUUID());
   } catch { failed = true; }
   warned = false;
   try { await removeEntries(uid); } catch { failed = true; }

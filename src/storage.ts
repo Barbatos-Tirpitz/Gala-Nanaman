@@ -91,5 +91,12 @@ export function saveTrips(trips: Trip[]): void {
 }
 
 export function createId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `trip-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    return `trip-${Date.now()}-${suffix}`;
+  }
+  throw new Error('Secure random generator is unavailable in this environment.');
 }
