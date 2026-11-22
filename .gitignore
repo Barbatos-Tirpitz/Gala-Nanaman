@@ -32,5 +32,6 @@ android/app/google-services.json
 !MVP_SCOPE.md
 !docs/COLLABORATION.md
 !docs/RELEASE_GATES.md
-
+!docs/wiki/
+!docs/wiki/*.md
 

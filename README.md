@@ -35,6 +35,7 @@ production-ready application.
 -   [Data Model](#data-model)
 -   [Technology Direction](#technology-direction)
 -   [Running Locally](#running-locally)
+-   [Technical Wiki](#technical-wiki)
 -   [MVP Roadmap](#mvp-roadmap)
 -   [Key Technical Considerations](#key-technical-considerations)
 -   [Project Status](#project-status)
@@ -839,3 +840,10 @@ Rules suite before using real trip data.
 Gala-Nanaman is intended to make trip planning more organized,
 collaborative, and manageable---without giving up clear ownership and
 control over the final plan.
+
+## Technical Wiki
+
+For code-level architecture, data and security boundaries, offline behavior,
+external integrations, and validation workflows, see the
+[Technical Wiki](docs/wiki/Home.md). This README remains the product and
+implementation overview; the wiki documents how the current code works.
